@@ -31,6 +31,16 @@ export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
 //
 export type ExpressionOperator = keyof typeof OPERATOR;
 
+//
+export interface RenderContext {
+	key: string;
+	operator: ExpressionOperator;
+	value: any;
+}
+
+export type Renderer = (context: RenderContext) => string;
+
+//
 export class Expression {
 	constructor(
 		public key: string,
@@ -38,26 +48,29 @@ export class Expression {
 		public value: any,
 		public options: Partial<{
 			// custom renderers support
-			renderKey: (key: string) => string;
-			renderValue: (value: any) => string;
-			renderOperator: (operator: ExpressionOperator) => string;
+			renderKey: Renderer;
+			renderValue: Renderer;
+			renderOperator: Renderer;
 		}> = {}
 	) {}
 
-	static renderKey(key: string) {
-		return key;
+	static renderKey(context: RenderContext) {
+		return context.key;
 	}
 
-	static renderValue(value: any) {
+	static renderValue(context: RenderContext) {
 		const q = "'";
-		return q + value.toString().replace(q, q + q) + q; // pg dialect
+		return q + context.value.toString().replace(q, q + q) + q; // pg dialect
 	}
 
-	static renderOperator(operator: ExpressionOperator) {
-		return OPERATOR_SYMBOL[operator] || OPERATOR_SYMBOL.eq;
+	static renderOperator(context: RenderContext) {
+		return OPERATOR_SYMBOL[context.operator] || OPERATOR_SYMBOL.eq;
 	}
 
-	protected _render(name: "key" | "value" | "operator", value: any) {
+	protected _render(
+		name: "key" | "value" | "operator",
+		context: RenderContext
+	): string {
 		const _static = {
 			key: Expression.renderKey,
 			value: Expression.renderValue,
@@ -68,7 +81,7 @@ export class Expression {
 			value: this.options.renderValue,
 			operator: this.options.renderOperator,
 		};
-		return (_instance[name] ?? _static[name])?.(value);
+		return (_instance[name] ?? _static[name])?.(context);
 	}
 
 	toJSON() {
@@ -79,11 +92,16 @@ export class Expression {
 		};
 	}
 
-	toString() {
+	toString(): string {
+		const context: RenderContext = {
+			key: this.key,
+			operator: this.operator,
+			value: this.value,
+		};
 		return [
-			this._render("key", this.key),
-			this._render("operator", this.operator),
-			this._render("value", this.value),
+			this._render("key", context),
+			this._render("operator", context),
+			this._render("value", context),
 		].join("");
 	}
 }

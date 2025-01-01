@@ -1,6 +1,10 @@
 // deno-lint-ignore-file no-explicit-any
 
-import { Expression, type ExpressionOperator } from "./expression.ts";
+import {
+	Expression,
+	type Renderer,
+	type ExpressionOperator,
+} from "./expression.ts";
 
 export type ConditionOperator = "and" | "or";
 
@@ -14,9 +18,9 @@ export class Condition {
 	constructor(
 		public options: Partial<{
 			expression: Partial<{
-				renderKey: (key: string) => string;
-				renderValue: (value: any) => string;
-				renderOperator: (operator: ExpressionOperator) => string;
+				renderKey: Renderer;
+				renderValue: Renderer;
+				renderOperator: Renderer;
 			}>;
 		}> = {}
 	) {}

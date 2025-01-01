@@ -1,5 +1,5 @@
 import { assertEquals } from "@std/assert";
-import { Expression, OPERATOR } from "../expression.ts";
+import { Expression, OPERATOR, RenderContext } from "../expression.ts";
 import { Condition } from "../condition.ts";
 
 Deno.test("expression", () => {
@@ -36,7 +36,7 @@ Deno.test("condition", () => {
 Deno.test("custom renderers", () => {
 	const g = new Condition({
 		expression: {
-			renderValue: (v) => v.toUpperCase(),
+			renderValue: (context: RenderContext) => context.value.toUpperCase(),
 		},
 	});
 	g.and("foo", OPERATOR.eq, "bar");
