@@ -108,10 +108,7 @@ export class Expression {
 	 * Function used to convert expression operator to string.
 	 */
 	static renderOperator(context: ExpressionContext): string {
-		if (!OPERATOR_SYMBOL[context.operator]) {
-			throw new TypeError(`Unknown operator '${context.operator}'`);
-		}
-		return OPERATOR_SYMBOL[context.operator];
+		return OPERATOR_SYMBOL[context.operator] || context.operator;
 	}
 
 	protected _render(

@@ -9,18 +9,18 @@ import {
 } from "./expression.ts";
 
 /** Operator used to logically combine conditions. Supported are `and` and `or`.*/
-export type ConditionOperator = "and" | "or";
+export type ConditionJoinOperator = "and" | "or";
 
 /** Internal representation type. */
 export type ConditionContent = {
-	operator: ConditionOperator;
+	operator: ConditionJoinOperator;
 	condition: Condition | undefined;
 	expression: Expression | undefined;
 }[];
 
 /** Internal represendation as POJO. */
 export type ConditionDump = {
-	operator: ConditionOperator;
+	operator: ConditionJoinOperator;
 	condition: ConditionDump | undefined;
 	expression: ExpressionContext | undefined;
 }[];
@@ -38,7 +38,7 @@ export class Condition {
 		}> = {}
 	) {}
 
-	#setPreviousAs(operator: ConditionOperator) {
+	#setPreviousAs(operator: ConditionJoinOperator) {
 		const previous = this.#content[this.#content.length - 1];
 		if (previous) previous.operator = operator;
 	}
@@ -47,7 +47,7 @@ export class Condition {
 		key: string,
 		operator: ExpressionOperator,
 		value: any,
-		condOperator: ConditionOperator
+		condOperator: ConditionJoinOperator
 	): Condition {
 		this.#setPreviousAs(condOperator);
 		this.#content.push({
@@ -58,7 +58,10 @@ export class Condition {
 		return this;
 	}
 
-	#addCondition(condition: Condition, operator: ConditionOperator): Condition {
+	#addCondition(
+		condition: Condition,
+		operator: ConditionJoinOperator
+	): Condition {
 		this.#setPreviousAs(operator);
 		condition.options = this.options;
 		this.#content.push({ condition, operator, expression: undefined });
@@ -100,7 +103,7 @@ export class Condition {
 	}
 
 	/** Sets logical block separator by index position. Used internally in `restore`. */
-	setOperator(index: number, operator: ConditionOperator) {
+	setOperator(index: number, operator: ConditionJoinOperator) {
 		if (this.#content[index]) {
 			this.#content[index].operator = operator;
 		} else {
