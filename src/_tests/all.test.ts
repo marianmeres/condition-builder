@@ -52,15 +52,15 @@ Deno.test("validator and custom renderers", () => {
 		validate: (ctx: ExpressionContext) => {
 			const { key } = ctx;
 			const keyWhitelist = ["foo"];
-			if (!keyWhitelist.includes(key)) {
+			if (!keyWhitelist.includes(key.toLowerCase())) {
 				throw new TypeError(`Key '${key}' not allowed`);
 			}
 		},
-		renderKey: (ctx: ExpressionContext) => ctx.key,
+		renderKey: (ctx: ExpressionContext) => ctx.key.toLowerCase(),
 		renderValue: (ctx: ExpressionContext) => ctx.value.toUpperCase(),
 		renderOperator: (ctx: ExpressionContext) => `:${ctx.operator}:`,
 	});
-	c.and("foo", OPERATOR.eq, "bar");
+	c.and("fOo", OPERATOR.eq, "bar");
 	assertEquals(c.toString(), "foo:eq:BAR");
 
 	// this must throw
