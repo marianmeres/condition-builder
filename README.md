@@ -86,7 +86,7 @@ const structure = c.toJSON();
 
 ## Expression operators
 
-There is a collection of built-in operators inspired from 
+There is a collection of built-in operators loosely inspired from 
 [postgrest](https://docs.postgrest.org/en/v12/references/api/tables_views.html) but you
 are not limited to them. You can freely use anything as an operator, it will be rendered
 as is. Or you can customize the rendering by providing `renderOperator` function mentioned
@@ -95,30 +95,14 @@ below.
 ```ts
 // opinionated collection of operators
 export const OPERATOR = {
-    eq: "eq",
-    neq: "neq",
-    gt: "gt",
-    gte: "gte",
-    lt: "lt",
-    lte: "lte",
-    match: "match",
-    nmatch: "nmatch",
-    in: "in",
-    nin: "nin",
+    eq: "eq", neq: "neq", gt: "gt", gte: "gte", lt: "lt", lte: "lte",
+    match: "match", nmatch: "nmatch", in: "in", nin: "nin",
 } as const;
 
 // opinionated conversion map of operators to operator symbols.
 export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
-    eq: "=",
-    neq: "!=",
-    gt: ">",
-    gte: ">=",
-    lt: "<",
-    lte: "<=",
-    match: "~",
-    nmatch: "!~",
-    in: "@>",
-    nin: "!@>",
+    eq: "=", neq: "!=", gt: ">", gte: ">=", lt: "<", lte: "<=",
+    match: "~", nmatch: "!~", in: "@>", nin: "!@>",
 } as const;
 
 // but you can safely use any operator you see fit...
@@ -166,7 +150,7 @@ const c = new Condition({
     // escape identifiers in postgresql dialect
     renderKey: (ctx: ExpressionContext) => `"${ctx.key.replaceAll('"', '""')}"`,
     // escape values in postgresql dialect
-    renderValue: (ctx: ExpressionContext) => `'${ctx.value.replaceAll("'", "''")}'`,
+    renderValue: (ctx: ExpressionContext) => `'${ctx.value.toString().replaceAll("'", "''")}'`,
 });
 c.and('fo"o', OPERATOR.eq, "ba'r");
 assertEquals(c.toString(), `"fo""o"='ba''r'`);
