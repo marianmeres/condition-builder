@@ -103,7 +103,7 @@ export class Condition {
 	}
 
 	/** Sets logical block separator by index position. Used internally in `restore`. */
-	setOperator(index: number, operator: ConditionJoinOperator) {
+	setOperator(index: number, operator: ConditionJoinOperator): Condition {
 		if (this.#content[index]) {
 			this.#content[index].operator = operator;
 		} else {
@@ -118,7 +118,7 @@ export class Condition {
 	}
 
 	/** Returns internal representation as stringified POJO. */
-	dump() {
+	dump(): string {
 		return JSON.stringify(this.#content);
 	}
 
@@ -148,7 +148,7 @@ export class Condition {
 	}
 
 	/** Return internal representation as final textual outcome. */
-	toString() {
+	toString(): string {
 		if (!this.#content.length) return "";
 		return (
 			this.#content
