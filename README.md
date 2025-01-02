@@ -156,6 +156,8 @@ this logic by providing your own custom `renderOperator` function.
     nlike: " not ilike ",
     match: "~*", 
     nmatch: "!~*", 
+    is: " is ",
+	nis: " is not ",
     in: "@>", 
     nin: "!@>",
 };
