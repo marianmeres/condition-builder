@@ -32,7 +32,7 @@ export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
 } as const;
 
 /** Key of `OPERATOR`. */
-export type ExpressionOperator = keyof typeof OPERATOR;
+export type ExpressionOperator = keyof typeof OPERATOR | string;
 
 /** Core expression internal data. */
 export interface ExpressionContext {
@@ -108,7 +108,7 @@ export class Expression {
 	 * Function used to convert expression operator to string.
 	 */
 	static renderOperator(context: ExpressionContext): string {
-		return OPERATOR_SYMBOL[context.operator] || context.operator;
+		return (OPERATOR_SYMBOL as any)[context.operator] || context.operator;
 	}
 
 	protected _render(

@@ -13,6 +13,11 @@ Deno.test("expression", () => {
 	});
 });
 
+Deno.test("expression custom operator", () => {
+	const e = new Expression("foo", "==", "bar");
+	assertEquals(e.toString(), "foo==bar");
+});
+
 Deno.test("condition", () => {
 	const c = new Condition();
 

@@ -3,7 +3,7 @@
 A tool for creating a hierarchical logical _condition_ from _expressions_ blocks, mainly
 to be used in - but not limited to - an sql _where_ statement.
 
-This package does not _evaluate_ the conditions or _parse_ it's textual representation.
+This package does not _evaluate_ the conditions or _parse_ its textual representation.
 
 ## Terminology
 
@@ -81,15 +81,19 @@ const c2 = Condition.restore(c.dump());
 assertEquals(c2.toString(), "a=b or c!=d or (e<f and g=h or (i~j and k!~l))";);
 
 // or export the condition as POJO structure for manual processing (evaluation)
+const structure = c.toJSON();
 ```
 
 ## Expression operators
 
 There is a collection of built-in operators inspired from 
 [postgrest](https://docs.postgrest.org/en/v12/references/api/tables_views.html) but you
-are not limited to them.
+are not limited to them. You can freely use anything as an operator, it will be rendered
+as is. Or you can customize the rendering by providing `renderOperator` function mentioned
+below.
 
 ```ts
+// opinionated collection of operators
 export const OPERATOR = {
     eq: "eq",
     neq: "neq",
@@ -103,7 +107,7 @@ export const OPERATOR = {
     nin: "nin",
 } as const;
 
-// Conversion map of operators to operator symbols.
+// opinionated conversion map of operators to operator symbols.
 export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
     eq: "=",
     neq: "!=",
@@ -117,6 +121,9 @@ export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
     nin: "!@>",
 } as const;
 
+// but you can safely use any operator you see fit...
+const e = new Expression("foo", "==", "bar");
+assertEquals(e.toString(), "foo==bar");
 ```
 
 ## Expression validation and rendering
