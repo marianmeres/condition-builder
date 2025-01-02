@@ -1,75 +1,122 @@
 // deno-lint-ignore-file no-explicit-any
 
-// inspiration: https://docs.postgrest.org/en/v12/references/api/tables_views.html
+/**
+ * Map of supported operators.
+ * Inspired from: https://docs.postgrest.org/en/v12/references/api/tables_views.html
+ * */
 export const OPERATOR = {
 	eq: "eq",
-	not_eq: "not_eq",
+	neq: "neq", // not equal
 	gt: "gt",
 	gte: "gte",
 	lt: "lt",
 	lte: "lte",
 	match: "match",
-	not_match: "not_match",
+	nmatch: "nmatch", // not match
 	in: "in",
-	not_in: "not_in",
+	nin: "nin", // not in
 } as const;
 
-//
+/** Conversion map of operators to operator symbols. Used internally mostly.  */
 export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
 	eq: "=",
-	not_eq: "!=",
+	neq: "!=",
 	gt: ">",
 	gte: ">=",
 	lt: "<",
 	lte: "<=",
 	match: "~",
-	not_match: "!~",
+	nmatch: "!~",
 	in: "@>",
-	not_in: "!@>",
+	nin: "!@>",
 } as const;
 
-//
+/** Key of `OPERATOR`. */
 export type ExpressionOperator = keyof typeof OPERATOR;
 
-//
-export interface RenderContext {
+/** Core expression internal data. */
+export interface ExpressionContext {
 	key: string;
 	operator: ExpressionOperator;
 	value: any;
 }
 
-export type Renderer = (context: RenderContext) => string;
+/** Function used to validate expression data. No-op by default. */
+export type Validator = (context: ExpressionContext) => void;
 
-//
+/** Function to render expression data items. */
+export type Renderer = (context: ExpressionContext) => string;
+
+/**
+ * Base condition building block. Consists of `key`, `operator` and `value`.
+ *
+ * @example
+ * ```ts
+ * const e = new Expression('foo', OPERATOR.eq, 'bar');
+ * assertEquals(e.toString(), 'foo=bar')
+ * ```
+ */
 export class Expression {
 	constructor(
 		public key: string,
 		public operator: ExpressionOperator,
 		public value: any,
 		public options: Partial<{
+			validate: Validator;
 			// custom renderers support
 			renderKey: Renderer;
 			renderValue: Renderer;
 			renderOperator: Renderer;
 		}> = {}
-	) {}
+	) {
+		const _validate = options?.validate ?? Expression.validate;
+		_validate?.({ key: this.key, operator: this.operator, value: this.value });
+	}
 
-	static renderKey(context: RenderContext) {
+	/** Function used to validate expression data. No-op by default. */
+	static validate(context: ExpressionContext): void {
+		// no-op by default... all is valid
+	}
+
+	/**
+	 * Function used to convert expression key to string. No-op by default.
+	 * @example For postgresql dialect
+	 * ```ts
+	 * Expression.renderKey = (context: ExpressionContext): string => {
+	 * return `"${context.key.toString().replaceAll('"', '""')}"`;
+	 * }
+	 * ```
+	 */
+	static renderKey(context: ExpressionContext): string {
 		return context.key;
 	}
 
-	static renderValue(context: RenderContext) {
-		const q = "'";
-		return q + context.value.toString().replace(q, q + q) + q; // pg dialect
+	/**
+	 * Function used to convert expression value to string. No-op by default.
+	 * @example For postgresql dialect
+	 * ```ts
+	 * Expression.renderValue = (context: ExpressionContext): string => {
+	 * return `'${context.key.toString().replaceAll("'", "''")}'`;
+	 * }
+	 * ```
+	 */
+	static renderValue(context: ExpressionContext): string {
+		return context.value;
 	}
 
-	static renderOperator(context: RenderContext) {
-		return OPERATOR_SYMBOL[context.operator] || OPERATOR_SYMBOL.eq;
+	/**
+	 * Function used to convert expression operator to string.
+	 */
+	static renderOperator(context: ExpressionContext): string {
+		if (!OPERATOR_SYMBOL[context.operator]) {
+			throw new TypeError(`Unknown operator '${context.operator}'`);
+		}
+		return OPERATOR_SYMBOL[context.operator];
 	}
 
 	protected _render(
 		name: "key" | "value" | "operator",
-		context: RenderContext
+		context: ExpressionContext
 	): string {
 		const _static = {
 			key: Expression.renderKey,
@@ -84,7 +131,8 @@ export class Expression {
 		return (_instance[name] ?? _static[name])?.(context);
 	}
 
-	toJSON() {
+	/** Returns internal representation as POJO. */
+	toJSON(): ExpressionContext {
 		return {
 			key: this.key,
 			operator: this.operator,
@@ -92,8 +140,9 @@ export class Expression {
 		};
 	}
 
+	/** Return internal representation as final textual outcome. */
 	toString(): string {
-		const context: RenderContext = {
+		const context: ExpressionContext = {
 			key: this.key,
 			operator: this.operator,
 			value: this.value,

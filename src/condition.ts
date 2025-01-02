@@ -2,26 +2,39 @@
 
 import {
 	Expression,
-	type Renderer,
+	type ExpressionContext,
 	type ExpressionOperator,
+	type Renderer,
+	type Validator,
 } from "./expression.ts";
 
+/** Operator used to logically combine conditions. Supported are `and` and `or`.*/
 export type ConditionOperator = "and" | "or";
 
+/** Internal representation type. */
+export type ConditionContent = {
+	operator: ConditionOperator;
+	condition: Condition | undefined;
+	expression: Expression | undefined;
+}[];
+
+/** Internal represendation as POJO. */
+export type ConditionDump = {
+	operator: ConditionOperator;
+	condition: ConditionDump | undefined;
+	expression: ExpressionContext | undefined;
+}[];
+
+/** High level class to represent `Expression`s as logical structure. */
 export class Condition {
-	#content: {
-		operator: ConditionOperator;
-		condition: Condition | undefined;
-		expression: Expression | undefined;
-	}[] = [];
+	#content: ConditionContent = [];
 
 	constructor(
 		public options: Partial<{
-			expression: Partial<{
-				renderKey: Renderer;
-				renderValue: Renderer;
-				renderOperator: Renderer;
-			}>;
+			validate: Validator;
+			renderKey: Renderer;
+			renderValue: Renderer;
+			renderOperator: Renderer;
 		}> = {}
 	) {}
 
@@ -40,20 +53,25 @@ export class Condition {
 		this.#content.push({
 			condition: undefined,
 			operator: condOperator,
-			expression: new Expression(key, operator, value, this.options.expression),
+			expression: new Expression(key, operator, value, this.options),
 		});
 		return this;
 	}
 
 	#addCondition(condition: Condition, operator: ConditionOperator): Condition {
 		this.#setPreviousAs(operator);
-		condition.options.expression = this.options.expression;
+		condition.options = this.options;
 		this.#content.push({ condition, operator, expression: undefined });
 		return this;
 	}
 
+	/** Adds data as a new `Expression` as an _and_ logical block. */
 	and(key: string, operator: ExpressionOperator, value: any): Condition;
+
+	/** Adds `Condition` as an _and_ logical block. */
 	and(condition: Condition): Condition;
+
+	/** Adds `Condition` or `Expression` data as an _and_ logical block. */
 	and(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
@@ -64,8 +82,13 @@ export class Condition {
 			: this.#addExpression(keyOrCond, operator!, value, "and");
 	}
 
+	/** Adds data as a new `Expression` as an _or_ logical block. */
 	or(key: string, operator: ExpressionOperator, value: any): Condition;
+
+	/** Adds `Condition` as an _or_ logical block. */
 	or(condition: Condition): Condition;
+
+	/** Adds `Condition` or `Expression` data as an _or_ logical block. */
 	or(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
@@ -76,20 +99,52 @@ export class Condition {
 			: this.#addExpression(keyOrCond, operator!, value, "or");
 	}
 
-	toJSON() {
-		// return JSON.parse(JSON.stringify(this.#content));
-		return this.#content
-			.reduce((m, o) => {
-				if (!o.condition && !o.expression) return m;
-				m.push(
-					o.condition ? o.condition.toJSON() : o.expression!.toJSON(),
-					o.operator
-				);
-				return m;
-			}, [] as any[])
-			.slice(0, -1);
+	/** Sets logical block separator by index position. Used internally in `restore`. */
+	setOperator(index: number, operator: ConditionOperator) {
+		if (this.#content[index]) {
+			this.#content[index].operator = operator;
+		} else {
+			throw new Error(`Index '${index}' not found`);
+		}
+		return this;
 	}
 
+	/** Returns internal representation as POJO. */
+	toJSON(): ConditionDump {
+		return JSON.parse(JSON.stringify(this.#content)); // quick-n-dirty
+	}
+
+	/** Returns internal representation as stringified POJO. */
+	dump() {
+		return JSON.stringify(this.#content);
+	}
+
+	/** Creates new instance from dump (POJO). Oposite of `dump`. */
+	static restore(dump: string | ConditionDump): Condition {
+		const cond = new Condition();
+		const content: ConditionDump =
+			typeof dump === "string" ? JSON.parse(dump) : dump;
+
+		for (const expOrCond of content) {
+			if (!expOrCond?.condition && !expOrCond?.expression) {
+				throw new TypeError("Neither 'condition' nor 'expression' found");
+			}
+			const method: "and" | "or" = expOrCond.operator;
+			if (expOrCond?.condition) {
+				const backup = expOrCond.condition[0].operator;
+				const restored = Condition.restore(JSON.stringify(expOrCond.condition));
+				restored.setOperator(0, backup);
+				cond[method](restored);
+			} else {
+				const { key, operator, value } = expOrCond?.expression!;
+				cond[method](key, operator, value);
+			}
+		}
+
+		return cond;
+	}
+
+	/** Return internal representation as final textual outcome. */
 	toString() {
 		if (!this.#content.length) return "";
 		return (
@@ -103,8 +158,8 @@ export class Condition {
 						o.operator
 					);
 					return m;
-				}, [] as any[])
-				// remove trailing operator
+				}, [] as string[])
+				// strip last block operator
 				.slice(0, -1)
 				.join(" ")
 		);
