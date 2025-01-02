@@ -74,13 +74,13 @@ c.or(
         )
 );
 
-assertEquals(c.toString(), "a=b or c!=d or (e<f and g=h or (i~j and k!~l))";);
+assertEquals(c.toString(), "a=b or c!=d or (e<f and g=h or (i~j and k!~l))");
 
 // dump & restore
 const c2 = Condition.restore(c.dump());
-assertEquals(c2.toString(), "a=b or c!=d or (e<f and g=h or (i~j and k!~l))";);
+assertEquals(c2.toString(), "a=b or c!=d or (e<f and g=h or (i~j and k!~l))");
 
-// or export the condition as POJO structure for manual processing (evaluation)
+// or export the condition as POJO structure for manual processing (eg evaluation)
 const structure = c.toJSON();
 ```
 
@@ -118,10 +118,11 @@ dialect agnostic. Just renders the input as is, which may not be always desired.
 
 ### Validation
 
-To _validate_ the expression keys, you must provide the `validate` function.
+To _validate_ the expression, you must provide the `validate` function.
 
 ```ts
 const c = new Condition({
+    // this example will allow only a known keys to be set
     validate: (ctx: ExpressionContext) => {
         const { key } = ctx;
         const keyWhitelist = ["foo"];
