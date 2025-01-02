@@ -2,10 +2,9 @@
 
 import {
 	Expression,
+	type ExpressionOptions,
 	type ExpressionContext,
 	type ExpressionOperator,
-	type Renderer,
-	type Validator,
 } from "./expression.ts";
 
 /** Operator used to logically combine conditions. Supported are `and` and `or`.*/
@@ -29,14 +28,7 @@ export type ConditionDump = {
 export class Condition {
 	#content: ConditionContent = [];
 
-	constructor(
-		public options: Partial<{
-			validate: Validator;
-			renderKey: Renderer;
-			renderValue: Renderer;
-			renderOperator: Renderer;
-		}> = {}
-	) {}
+	constructor(public options: ExpressionOptions = {}) {}
 
 	#setPreviousAs(operator: ConditionJoinOperator) {
 		const previous = this.#content[this.#content.length - 1];
@@ -123,8 +115,11 @@ export class Condition {
 	}
 
 	/** Creates new instance from dump (POJO). Oposite of `dump`. */
-	static restore(dump: string | ConditionDump): Condition {
-		const cond = new Condition();
+	static restore(
+		dump: string | ConditionDump,
+		options: ExpressionOptions = {}
+	): Condition {
+		const cond = new Condition(options);
 		const content: ConditionDump =
 			typeof dump === "string" ? JSON.parse(dump) : dump;
 
@@ -135,7 +130,10 @@ export class Condition {
 			const method: "and" | "or" = expOrCond.operator;
 			if (expOrCond?.condition) {
 				const backup = expOrCond.condition[0].operator;
-				const restored = Condition.restore(JSON.stringify(expOrCond.condition));
+				const restored = Condition.restore(
+					JSON.stringify(expOrCond.condition),
+					options
+				);
 				restored.setOperator(0, backup);
 				cond[method](restored);
 			} else {

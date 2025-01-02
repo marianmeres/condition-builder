@@ -47,6 +47,36 @@ export type Validator = (context: ExpressionContext) => void;
 /** Function to render expression data items. */
 export type Renderer = (context: ExpressionContext) => string;
 
+/** Expression options used for validation and rendering. */
+export interface ExpressionOptions {
+	/** Function used to validate expression data. No-op by default. */
+	validate?: Validator;
+	/**
+	 * Function used to convert expression key to string. No-op by default.
+	 * @example For postgresql dialect
+	 * ```ts
+	 * (context: ExpressionContext): string => {
+	 * return `"${context.key.toString().replaceAll('"', '""')}"`;
+	 * }
+	 * ```
+	 */
+	renderKey?: Renderer;
+	/**
+	 * Function used to convert expression value to string. No-op by default.
+	 * @example For postgresql dialect
+	 * ```ts
+	 * (context: ExpressionContext): string => {
+	 * return `'${context.key.toString().replaceAll("'", "''")}'`;
+	 * }
+	 * ```
+	 */
+	renderValue?: Renderer;
+	/**
+	 * Function used to convert expression operator to string.
+	 */
+	renderOperator?: Renderer;
+}
+
 /**
  * Base condition building block. Consists of `key`, `operator` and `value`.
  *
@@ -61,71 +91,13 @@ export class Expression {
 		public key: string,
 		public operator: ExpressionOperator,
 		public value: any,
-		public options: Partial<{
-			validate: Validator;
-			// custom renderers support
-			renderKey: Renderer;
-			renderValue: Renderer;
-			renderOperator: Renderer;
-		}> = {}
+		public options: ExpressionOptions = {}
 	) {
-		const _validate = options?.validate ?? Expression.validate;
-		_validate?.({ key: this.key, operator: this.operator, value: this.value });
-	}
-
-	/** Function used to validate expression data. No-op by default. */
-	static validate(context: ExpressionContext): void {
-		// no-op by default... all is valid
-	}
-
-	/**
-	 * Function used to convert expression key to string. No-op by default.
-	 * @example For postgresql dialect
-	 * ```ts
-	 * Expression.renderKey = (context: ExpressionContext): string => {
-	 * return `"${context.key.toString().replaceAll('"', '""')}"`;
-	 * }
-	 * ```
-	 */
-	static renderKey(context: ExpressionContext): string {
-		return context.key;
-	}
-
-	/**
-	 * Function used to convert expression value to string. No-op by default.
-	 * @example For postgresql dialect
-	 * ```ts
-	 * Expression.renderValue = (context: ExpressionContext): string => {
-	 * return `'${context.key.toString().replaceAll("'", "''")}'`;
-	 * }
-	 * ```
-	 */
-	static renderValue(context: ExpressionContext): string {
-		return context.value;
-	}
-
-	/**
-	 * Function used to convert expression operator to string.
-	 */
-	static renderOperator(context: ExpressionContext): string {
-		return (OPERATOR_SYMBOL as any)[context.operator] || context.operator;
-	}
-
-	protected _render(
-		name: "key" | "value" | "operator",
-		context: ExpressionContext
-	): string {
-		const _static = {
-			key: Expression.renderKey,
-			value: Expression.renderValue,
-			operator: Expression.renderOperator,
-		};
-		const _instance = {
-			key: this.options.renderKey,
-			value: this.options.renderValue,
-			operator: this.options.renderOperator,
-		};
-		return (_instance[name] ?? _static[name])?.(context);
+		this.options?.validate?.({
+			key: this.key,
+			operator: this.operator,
+			value: this.value,
+		});
 	}
 
 	/** Returns internal representation as POJO. */
@@ -139,15 +111,15 @@ export class Expression {
 
 	/** Return internal representation as final textual outcome. */
 	toString(): string {
-		const context: ExpressionContext = {
-			key: this.key,
-			operator: this.operator,
-			value: this.value,
-		};
-		return [
-			this._render("key", context),
-			this._render("operator", context),
-			this._render("value", context),
-		].join("");
+		let { renderKey, renderOperator, renderValue } = this.options || {};
+
+		// fallback to defaults if options are not provided
+		renderKey ??= ({ key }) => `${key}`;
+		renderOperator ??= ({ operator }) =>
+			(OPERATOR_SYMBOL as any)[`${operator}`] || `${operator}`;
+		renderValue ??= ({ value }) => `${value}`;
+
+		const c = this.toJSON();
+		return [renderKey(c), renderOperator(c), renderValue(c)].join("");
 	}
 }

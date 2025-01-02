@@ -1,5 +1,10 @@
 import { assertEquals, assertThrows } from "@std/assert";
-import { Expression, OPERATOR, type ExpressionContext } from "../expression.ts";
+import {
+	Expression,
+	OPERATOR,
+	Validator,
+	type ExpressionContext,
+} from "../expression.ts";
 import { Condition } from "../condition.ts";
 
 Deno.test("expression", () => {
@@ -65,4 +70,15 @@ Deno.test("validator and custom renderers", () => {
 
 	// this must throw
 	assertThrows(() => c.and("baz", OPERATOR.neq, "bat"));
+});
+
+Deno.test("restore with options", () => {
+	const c = new Condition();
+	c.and("a", OPERATOR.eq, "b");
+
+	const validate: Validator = (c) => {
+		if (c.key === "a") throw new TypeError();
+	};
+
+	assertThrows(() => Condition.restore(c.dump(), { validate }));
 });
