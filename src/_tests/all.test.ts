@@ -43,7 +43,7 @@ Deno.test("condition", () => {
 			)
 	);
 
-	const expected = "a=b or c!=d or (e<f and g=h or (i~j and k!~l))";
+	const expected = "a=b or c!=d or (e<f and g=h or (i~*j and k!~*l))";
 	assertEquals(c.toString(), expected);
 
 	// dump & restore
