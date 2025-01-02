@@ -22,13 +22,13 @@ joined by a logical join operator, which is either `and` or `or`.
 
 ```ts
 // condition with one expression
-`(a=b)`
+`a=b`
 
 // condition with 2 expression join by `or`
-`(a=b or c=d)`
+`a=b or c=d`
 
 // condition of multiple hierarchically structured expressions and conditions
-`(a=b or (c>d and (e<f or g!=h)))`
+`a=b or (c>d and (e<f or g!=h))`
 ```
 
 ## Installation
