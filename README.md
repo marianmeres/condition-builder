@@ -84,32 +84,6 @@ assertEquals(c2.toString(), "a=b or c!=d or (e<f and g=h or (i~j and k!~l))");
 const structure = c.toJSON();
 ```
 
-## Expression operators
-
-There is a collection of built-in operators loosely inspired from 
-[postgrest](https://docs.postgrest.org/en/v12/references/api/tables_views.html) but you
-are not limited to them. You can freely use anything as an operator, it will be rendered
-as is. Or you can customize the rendering by providing `renderOperator` function mentioned
-below.
-
-```ts
-// opinionated collection of operators
-export const OPERATOR = {
-    eq: "eq", neq: "neq", gt: "gt", gte: "gte", lt: "lt", lte: "lte",
-    match: "match", nmatch: "nmatch", in: "in", nin: "nin",
-} as const;
-
-// opinionated conversion map of operators to operator symbols.
-export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
-    eq: "=", neq: "!=", gt: ">", gte: ">=", lt: "<", lte: "<=",
-    match: "~", nmatch: "!~", in: "@>", nin: "!@>",
-} as const;
-
-// but you can safely use any operator you see fit...
-const e = new Expression("foo", "==", "bar");
-assertEquals(e.toString(), "foo==bar");
-```
-
 ## Expression validation and rendering
 
 Point of this package is to create a textual representation of the logical conditions
@@ -152,7 +126,41 @@ const c = new Condition({
     renderKey: (ctx: ExpressionContext) => `"${ctx.key.replaceAll('"', '""')}"`,
     // escape values in postgresql dialect
     renderValue: (ctx: ExpressionContext) => `'${ctx.value.toString().replaceAll("'", "''")}'`,
+    // read below
+    // renderOperator(ctx: ExpressionContext): string
 });
 c.and('fo"o', OPERATOR.eq, "ba'r");
 assertEquals(c.toString(), `"fo""o"='ba''r'`);
+```
+
+#### Built-in operators rendering
+
+There is a default built-in operator-to-symbol replacement logic (targeting postgresql dialect),
+loosely inspired from 
+[postgrest](https://docs.postgrest.org/en/v12/references/api/tables_views.html). 
+
+Any found operator in the map below will be replaced with its symbol. 
+If the operator is not found in the map, no replacement will happen. You can customize 
+this logic by providing your own custom `renderOperator` function.
+
+```ts
+// default opinionated conversion map of operators to operator symbols.
+{
+    eq: "=", 
+    neq: "!=", 
+    gt: ">", 
+    gte: ">=", 
+    lt: "<", 
+    lte: "<=",
+    like: "ilike", 
+    nlike: "not ilike",
+    match: "~*", 
+    nmatch: "!~*", 
+    in: "@>", 
+    nin: "!@>",
+};
+
+// but you can safely use any operator you see fit...
+const e = new Expression("foo", "==", "bar");
+assertEquals(e.toString(), "foo==bar");
 ```

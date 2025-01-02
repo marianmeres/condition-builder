@@ -11,6 +11,8 @@ export const OPERATOR = {
 	gte: "gte",
 	lt: "lt",
 	lte: "lte",
+	like: "like",
+	nlike: "nlike",
 	match: "match",
 	nmatch: "nmatch", // not match
 	in: "in",
@@ -25,8 +27,10 @@ export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
 	gte: ">=",
 	lt: "<",
 	lte: "<=",
-	match: "~",
-	nmatch: "!~",
+	like: "ilike",
+	nlike: "not ilike",
+	match: "~*",
+	nmatch: "!~*",
 	in: "@>",
 	nin: "!@>",
 } as const;
