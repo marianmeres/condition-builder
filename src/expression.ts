@@ -19,9 +19,10 @@ export const OPERATOR = {
 	nis: "nis",
 	in: "in",
 	nin: "nin", // not in
+	ltree: "ltree",
 } as const;
 
-/** Conversion map of operators to operator symbols. Used internally mostly.  */
+/** Built-in conversion map of operators to operator symbols (targeting pg dialect). */
 export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
 	eq: "=",
 	neq: "!=",
@@ -37,6 +38,7 @@ export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
 	nis: " is not ",
 	in: "@>",
 	nin: "!@>",
+	ltree: "~", // https://www.postgresql.org/docs/17/ltree.html
 } as const;
 
 /** Key of `OPERATOR`. */
