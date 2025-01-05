@@ -158,8 +158,8 @@ this logic by providing your own custom `renderOperator` function.
     nmatch: "!~*", 
     is: " is ",
 	nis: " is not ",
-    in: "@>", 
-    nin: "!@>",
+    in: " in ", 
+    nin: " not in ",
 };
 
 // but you can safely use any operator you see fit...

@@ -36,8 +36,8 @@ export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
 	nmatch: "!~*",
 	is: " is ",
 	nis: " is not ",
-	in: "@>",
-	nin: "!@>",
+	in: " in ",
+	nin: " not in ",
 	ltree: "~", // https://www.postgresql.org/docs/17/ltree.html
 } as const;
 
