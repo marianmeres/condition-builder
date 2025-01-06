@@ -9,7 +9,7 @@ This package does not _evaluate_ the conditions or _parse_ its textual represent
 
 ### Expression
 
-_Expression_ is the base building block. Consists of `key`, `operator` and `value`.
+_Expression_ is the base building block. It consists of `key`, `operator` and `value`.
 
 ```ts
 `a=b`
