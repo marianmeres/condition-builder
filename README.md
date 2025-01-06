@@ -24,7 +24,7 @@ joined by a logical join operator, which is either `and` or `or`.
 // condition with one expression
 `a=b`
 
-// condition with 2 expression join by `or`
+// condition with 2 expressions joined by `or`
 `a=b or c=d`
 
 // condition of multiple hierarchically structured expressions and conditions
@@ -92,7 +92,8 @@ dialect agnostic. Just renders the input as is, which may not be always desired.
 
 ### Validation
 
-To _validate_ the expression, you must provide the `validate` function.
+To _validate_ the condition, you must provide the `validate` function which will validate
+every expression before being added to the condition.
 
 ```ts
 const c = new Condition({
@@ -136,7 +137,7 @@ assertEquals(c.toString(), `"fo""o"='ba''r'`);
 #### Built-in operators rendering
 
 There is a default built-in operator-to-symbol replacement logic (targeting postgresql dialect),
-loosely inspired from 
+loosely inspired by 
 [postgrest](https://docs.postgrest.org/en/v12/references/api/tables_views.html). 
 
 Any found operator in the map below will be replaced with its symbol. 
@@ -157,7 +158,7 @@ this logic by providing your own custom `renderOperator` function.
     match: "~*", 
     nmatch: "!~*", 
     is: " is ",
-	nis: " is not ",
+    nis: " is not ",
     in: " in ", 
     nin: " not in ",
 };
