@@ -1,9 +1,9 @@
 import { assertEquals, assertThrows } from "@std/assert";
 import {
 	Expression,
+	type ExpressionContext,
 	OPERATOR,
 	Validator,
-	type ExpressionContext,
 } from "../expression.ts";
 import { Condition } from "../condition.ts";
 
@@ -39,8 +39,8 @@ Deno.test("condition", () => {
 			.or(
 				new Condition()
 					.and("i", OPERATOR.match, "j")
-					.and("k", OPERATOR.nmatch, "l")
-			)
+					.and("k", OPERATOR.nmatch, "l"),
+			),
 	);
 
 	const expected = "a=b or c!=d or (e<f and g=h or (i~*j and k!~*l))";

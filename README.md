@@ -12,23 +12,23 @@ This package does not _evaluate_ the conditions or _parse_ its textual represent
 _Expression_ is the base building block. It consists of `key`, `operator` and `value`.
 
 ```ts
-`a=b`
+`a=b`;
 ```
 
 ### Condition
 
-_Condition_ is a hierarchical collection of one or more _expressions_ or _conditions_ 
+_Condition_ is a hierarchical collection of one or more _expressions_ or _conditions_
 joined by a logical join operator, which is either `and` or `or`.
 
 ```ts
 // condition with one expression
 `a=b`
 
-// condition with 2 expressions joined by `or`
-`a=b or c=d`
+	// condition with 2 expressions joined by `or`
+	`a=b or c=d`
 
-// condition of multiple hierarchically structured expressions and conditions
-`a=b or (c>d and (e<f or g!=h))`
+	// condition of multiple hierarchically structured expressions and conditions
+	`a=b or (c>d and (e<f or g!=h))`;
 ```
 
 ## Installation
@@ -51,8 +51,7 @@ npx jsr add @marianmeres/condition-builder
 import { Condition } from "@marianmeres/condition-builder";
 ```
 
-
-## Example 
+## Example
 
 ```ts
 const c = new Condition();
@@ -64,14 +63,14 @@ c.or("c", OPERATOR.neq, "d");
 assertEquals(c.toString(), "a=b or c!=d");
 
 c.or(
-    new Condition()
-        .and("e", OPERATOR.lt, "f")
-        .and("g", OPERATOR.eq, "h")
-        .or(
-            new Condition()
-                .and("i", OPERATOR.match, "j")
-                .and("k", OPERATOR.nmatch, "l")
-        )
+	new Condition()
+		.and("e", OPERATOR.lt, "f")
+		.and("g", OPERATOR.eq, "h")
+		.or(
+			new Condition()
+				.and("i", OPERATOR.match, "j")
+				.and("k", OPERATOR.nmatch, "l"),
+		),
 );
 
 assertEquals(c.toString(), "a=b or c!=d or (e<f and g=h or (i~j and k!~l))");
@@ -87,7 +86,7 @@ const structure = c.toJSON();
 ## Expression validation and rendering
 
 Point of this package is to create a textual representation of the logical conditions
-blocks to be used in an sql _where_ statement. By default, the package is content and 
+blocks to be used in an sql _where_ statement. By default, the package is content and
 dialect agnostic. Just renders the input as is, which may not be always desired.
 
 ### Validation
@@ -97,14 +96,14 @@ every expression before being added to the condition.
 
 ```ts
 const c = new Condition({
-    // this example will allow only a known keys to be set
-    validate: (ctx: ExpressionContext) => {
-        const { key } = ctx;
-        const keyWhitelist = ["foo"];
-        if (!keyWhitelist.includes(key)) {
-            throw new TypeError(`Key '${key}' not allowed`);
-        }
-    },
+	// this example will allow only a known keys to be set
+	validate: (ctx: ExpressionContext) => {
+		const { key } = ctx;
+		const keyWhitelist = ["foo"];
+		if (!keyWhitelist.includes(key)) {
+			throw new TypeError(`Key '${key}' not allowed`);
+		}
+	},
 });
 
 // `foo` key is allowed
@@ -116,19 +115,20 @@ assertThrows(() => c.and("bar", OPERATOR.neq, "2"));
 
 ### Rendering
 
-To match the textual representation for any specific format you must provide any of 
-the `renderKey`, `renderValue`, or `renderOperator` functions. 
+To match the textual representation for any specific format you must provide any of the
+`renderKey`, `renderValue`, or `renderOperator` functions.
 
 For example for postgresql dialect you may use something like this:
 
 ```ts
 const c = new Condition({
-    // escape identifiers in postgresql dialect
-    renderKey: (ctx: ExpressionContext) => `"${ctx.key.replaceAll('"', '""')}"`,
-    // escape values in postgresql dialect
-    renderValue: (ctx: ExpressionContext) => `'${ctx.value.toString().replaceAll("'", "''")}'`,
-    // read below
-    // renderOperator(ctx: ExpressionContext): string
+	// escape identifiers in postgresql dialect
+	renderKey: (ctx: ExpressionContext) => `"${ctx.key.replaceAll('"', '""')}"`,
+	// escape values in postgresql dialect
+	renderValue: (ctx: ExpressionContext) =>
+		`'${ctx.value.toString().replaceAll("'", "''")}'`,
+	// read below
+	// renderOperator(ctx: ExpressionContext): string
 });
 c.and('fo"o', OPERATOR.eq, "ba'r");
 assertEquals(c.toString(), `"fo""o"='ba''r'`);
@@ -136,13 +136,13 @@ assertEquals(c.toString(), `"fo""o"='ba''r'`);
 
 #### Built-in operators rendering
 
-There is a default built-in operator-to-symbol replacement logic (targeting postgresql dialect),
-loosely inspired by 
-[postgrest](https://docs.postgrest.org/en/v12/references/api/tables_views.html). 
+There is a default built-in operator-to-symbol replacement logic (targeting postgresql
+dialect), loosely inspired by
+[postgrest](https://docs.postgrest.org/en/v12/references/api/tables_views.html).
 
-Any found operator in the map below will be replaced with its symbol. 
-If the operator is not found in the map, no replacement will happen. You can customize 
-this logic by providing your own custom `renderOperator` function.
+Any found operator in the map below will be replaced with its symbol. If the operator is
+not found in the map, no replacement will happen. You can customize this logic by
+providing your own custom `renderOperator` function.
 
 ```ts
 // default opinionated conversion map of operators to operator symbols.

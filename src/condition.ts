@@ -2,9 +2,9 @@
 
 import {
 	Expression,
-	type ExpressionOptions,
 	type ExpressionContext,
 	type ExpressionOperator,
+	type ExpressionOptions,
 } from "./expression.ts";
 
 /** Operator used to logically combine conditions. Supported are `and` and `or`.*/
@@ -39,7 +39,7 @@ export class Condition {
 		key: string,
 		operator: ExpressionOperator,
 		value: any,
-		condOperator: ConditionJoinOperator
+		condOperator: ConditionJoinOperator,
 	): Condition {
 		this.#setPreviousAs(condOperator);
 		this.#content.push({
@@ -52,7 +52,7 @@ export class Condition {
 
 	#addCondition(
 		condition: Condition,
-		operator: ConditionJoinOperator
+		operator: ConditionJoinOperator,
 	): Condition {
 		this.#setPreviousAs(operator);
 		condition.options = this.options;
@@ -70,7 +70,7 @@ export class Condition {
 	and(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any
+		value?: any,
 	): Condition {
 		return keyOrCond instanceof Condition
 			? this.#addCondition(keyOrCond, "and")
@@ -87,7 +87,7 @@ export class Condition {
 	or(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any
+		value?: any,
 	): Condition {
 		return keyOrCond instanceof Condition
 			? this.#addCondition(keyOrCond, "or")
@@ -117,11 +117,10 @@ export class Condition {
 	/** Creates new instance from dump (POJO). Oposite of `dump`. */
 	static restore(
 		dump: string | ConditionDump,
-		options: ExpressionOptions = {}
+		options: ExpressionOptions = {},
 	): Condition {
 		const cond = new Condition(options);
-		const content: ConditionDump =
-			typeof dump === "string" ? JSON.parse(dump) : dump;
+		const content: ConditionDump = typeof dump === "string" ? JSON.parse(dump) : dump;
 
 		for (const expOrCond of content) {
 			if (!expOrCond?.condition && !expOrCond?.expression) {
@@ -132,7 +131,7 @@ export class Condition {
 				const backup = expOrCond.condition[0].operator;
 				const restored = Condition.restore(
 					JSON.stringify(expOrCond.condition),
-					options
+					options,
 				);
 				restored.setOperator(0, backup);
 				cond[method](restored);
@@ -156,7 +155,7 @@ export class Condition {
 						o.condition
 							? `(${o.condition.toString()})`
 							: o.expression!.toString(),
-						o.operator
+						o.operator,
 					);
 					return m;
 				}, [] as string[])

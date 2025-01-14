@@ -3,7 +3,7 @@
 /**
  * Map of supported operators.
  * Inspired from: https://docs.postgrest.org/en/v12/references/api/tables_views.html
- * */
+ */
 export const OPERATOR = {
 	eq: "eq",
 	neq: "neq", // not equal
@@ -101,7 +101,7 @@ export class Expression {
 		public key: string,
 		public operator: ExpressionOperator,
 		public value: any,
-		public options: ExpressionOptions = {}
+		public options: ExpressionOptions = {},
 	) {
 		this.options?.validate?.({
 			key: this.key,

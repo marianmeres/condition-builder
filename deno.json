@@ -11,7 +11,6 @@
 	"fmt": {
 		"useTabs": true,
 		"lineWidth": 90,
-		"indentWidth": 4,
-		"proseWrap": "preserve"
+		"indentWidth": 4
 	}
 }
