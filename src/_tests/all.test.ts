@@ -39,8 +39,8 @@ Deno.test("condition", () => {
 			.or(
 				new Condition()
 					.and("i", OPERATOR.match, "j")
-					.and("k", OPERATOR.nmatch, "l")
-			)
+					.and("k", OPERATOR.nmatch, "l"),
+			),
 	);
 
 	const expected = "a=b or c!=d or (e<f and g=h or (i~*j and k!~*l))";
@@ -104,7 +104,7 @@ Deno.test("(a=b) and (c=d)", () => {
 	const c = new Condition();
 
 	c.and(new Condition().and("a", OPERATOR.eq, "b")).and(
-		new Condition().and("c", OPERATOR.eq, "d")
+		new Condition().and("c", OPERATOR.eq, "d"),
 	);
 	// console.log(c.toString(), c.toJSON());
 

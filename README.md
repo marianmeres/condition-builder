@@ -20,13 +20,13 @@ joined by a logical join operator, which is either `and` or `or`.
 
 ```ts
 // condition with one expression
-`a=b`
+`a=b`;
 
-	// condition with 2 expressions joined by `or`
-	`a=b or c=d`
+// condition with 2 expressions joined by `or`
+`a=b or c=d`;
 
-	// condition of multiple hierarchically structured expressions and conditions
-	`a=b or (c>d and (e<f or g!=h))`;
+// condition of multiple hierarchically structured expressions and conditions
+`a=b or (c>d and (e<f or g!=h))`;
 ```
 
 ## Installation
@@ -51,8 +51,8 @@ import { Condition } from "@marianmeres/condition-builder";
 
 ## Example
 
-The core api consists of 2 methods `and(...)` and `or(...)`. For the _first_ call
-you can use any one of them.
+The core api consists of 2 methods `and(...)` and `or(...)`. For the _first_ call you can
+use any one of them.
 
 ```ts
 const c = new Condition();
