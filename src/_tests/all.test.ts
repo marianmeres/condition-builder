@@ -3,7 +3,7 @@ import {
 	Expression,
 	type ExpressionContext,
 	OPERATOR,
-	Validator,
+	type Validator,
 } from "../expression.ts";
 import { Condition } from "../condition.ts";
 
@@ -39,12 +39,13 @@ Deno.test("condition", () => {
 			.or(
 				new Condition()
 					.and("i", OPERATOR.match, "j")
-					.and("k", OPERATOR.nmatch, "l"),
-			),
+					.and("k", OPERATOR.nmatch, "l")
+			)
 	);
 
 	const expected = "a=b or c!=d or (e<f and g=h or (i~*j and k!~*l))";
 	assertEquals(c.toString(), expected);
+	// console.log(JSON.stringify(c.toJSON(), null, 4));
 
 	// dump & restore
 	const c2 = Condition.restore(c.dump());
@@ -81,4 +82,76 @@ Deno.test("restore with options", () => {
 	};
 
 	assertThrows(() => Condition.restore(c.dump(), { validate }));
+});
+
+Deno.test("a=b and (c=d or e=f)", () => {
+	const c = new Condition();
+
+	c.and("a", OPERATOR.eq, "b");
+	c.and(new Condition().and("c", OPERATOR.eq, "d").or("e", "=", "f"));
+
+	// console.log(c.toJSON());
+	const expected = "a=b and (c=d or e=f)";
+	assertEquals(c.toString(), expected);
+
+	// dump & restore
+	const c2 = Condition.restore(c.dump());
+	assertEquals(c.toJSON(), c2.toJSON());
+	assertEquals(c2.toString(), expected);
+});
+
+Deno.test("(a=b) and (c=d)", () => {
+	const c = new Condition();
+
+	c.and(new Condition().and("a", OPERATOR.eq, "b")).and(
+		new Condition().and("c", OPERATOR.eq, "d")
+	);
+	// console.log(c.toString(), c.toJSON());
+
+	const expected = "(a=b) and (c=d)";
+	assertEquals(c.toString(), expected);
+
+	// dump & restore
+	const c2 = Condition.restore(c.dump());
+	assertEquals(c.toJSON(), c2.toJSON());
+	assertEquals(c2.toString(), expected);
+});
+
+Deno.test("a=b or c=d or e=f", () => {
+	const c = new Condition();
+
+	c.or("a", OPERATOR.eq, "b")
+		.or("c", OPERATOR.eq, "d")
+		.or("e", OPERATOR.eq, "f");
+
+	// console.log(c.toString(), c.toJSON());
+	const expected = "a=b or c=d or e=f";
+	assertEquals(c.toString(), expected);
+
+	// dump & restore
+	const c2 = Condition.restore(c.dump());
+	assertEquals(c.toJSON(), c2.toJSON());
+	assertEquals(c2.toString(), expected);
+});
+
+Deno.test("a=b and c=d or e=f and g=h", () => {
+	const c = new Condition();
+
+	c.and("a", OPERATOR.eq, "b")
+		.and("c", OPERATOR.eq, "d")
+		.or("e", OPERATOR.eq, "f")
+		.and("g", OPERATOR.eq, "h");
+
+	// console.log(c.toString(), c.toJSON());
+
+	const expected = "a=b and c=d or e=f and g=h";
+	assertEquals(c.toString(), expected);
+
+	// dump & restore
+	const c2 = Condition.restore(c.dump());
+
+	// console.log(c2.toJSON());
+
+	assertEquals(c.toJSON(), c2.toJSON());
+	assertEquals(c2.toString(), expected);
 });

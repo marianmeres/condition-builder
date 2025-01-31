@@ -30,18 +30,24 @@ export class Condition {
 
 	constructor(public options: ExpressionOptions = {}) {}
 
-	#setPreviousAs(operator: ConditionJoinOperator) {
-		const previous = this.#content[this.#content.length - 1];
-		if (previous) previous.operator = operator;
+	#setCurrentAs(operator: ConditionJoinOperator) {
+		if (this.#content.length) {
+			const current = this.#content.at(-1);
+			if (current) {
+				// console.log("setCurrentAs", current.operator, operator);
+				current.operator = operator;
+			}
+		}
 	}
 
 	#addExpression(
 		key: string,
 		operator: ExpressionOperator,
 		value: any,
-		condOperator: ConditionJoinOperator,
+		condOperator: ConditionJoinOperator
 	): Condition {
-		this.#setPreviousAs(condOperator);
+		// console.log("addExpression", condOperator, key, operator, value);
+		this.#setCurrentAs(condOperator);
 		this.#content.push({
 			condition: undefined,
 			operator: condOperator,
@@ -52,9 +58,9 @@ export class Condition {
 
 	#addCondition(
 		condition: Condition,
-		operator: ConditionJoinOperator,
+		operator: ConditionJoinOperator
 	): Condition {
-		this.#setPreviousAs(operator);
+		this.#setCurrentAs(operator);
 		condition.options = this.options;
 		this.#content.push({ condition, operator, expression: undefined });
 		return this;
@@ -70,7 +76,7 @@ export class Condition {
 	and(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any,
+		value?: any
 	): Condition {
 		return keyOrCond instanceof Condition
 			? this.#addCondition(keyOrCond, "and")
@@ -87,21 +93,11 @@ export class Condition {
 	or(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any,
+		value?: any
 	): Condition {
 		return keyOrCond instanceof Condition
 			? this.#addCondition(keyOrCond, "or")
 			: this.#addExpression(keyOrCond, operator!, value, "or");
-	}
-
-	/** Sets logical block separator by index position. Used internally in `restore`. */
-	setOperator(index: number, operator: ConditionJoinOperator): Condition {
-		if (this.#content[index]) {
-			this.#content[index].operator = operator;
-		} else {
-			throw new Error(`Index '${index}' not found`);
-		}
-		return this;
 	}
 
 	/** Returns internal representation as POJO. */
@@ -117,26 +113,31 @@ export class Condition {
 	/** Creates new instance from dump (POJO). Oposite of `dump`. */
 	static restore(
 		dump: string | ConditionDump,
-		options: ExpressionOptions = {},
+		options: ExpressionOptions = {}
 	): Condition {
 		const cond = new Condition(options);
-		const content: ConditionDump = typeof dump === "string" ? JSON.parse(dump) : dump;
+		const content: ConditionDump =
+			typeof dump === "string" ? JSON.parse(dump) : dump;
 
-		for (const expOrCond of content) {
+		for (const [i, expOrCond] of content.entries()) {
 			if (!expOrCond?.condition && !expOrCond?.expression) {
 				throw new TypeError("Neither 'condition' nor 'expression' found");
 			}
-			const method: "and" | "or" = expOrCond.operator;
+
+			// this is a little tricky - we need to use previous (unless we're at 0)
+			// because the "and(...)", "or(...)" apis always update the current operator
+			// before adding the new one
+			const method: "and" | "or" = content[Math.max(i - 1, 0)].operator;
+
 			if (expOrCond?.condition) {
-				const backup = expOrCond.condition[0].operator;
 				const restored = Condition.restore(
 					JSON.stringify(expOrCond.condition),
-					options,
+					options
 				);
-				restored.setOperator(0, backup);
 				cond[method](restored);
 			} else {
 				const { key, operator, value } = expOrCond?.expression!;
+				// console.log(method, key, operator, value);
 				cond[method](key, operator, value);
 			}
 		}
@@ -155,7 +156,7 @@ export class Condition {
 						o.condition
 							? `(${o.condition.toString()})`
 							: o.expression!.toString(),
-						o.operator,
+						o.operator
 					);
 					return m;
 				}, [] as string[])

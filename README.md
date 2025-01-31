@@ -1,9 +1,7 @@
 # @marianmeres/condition-builder
 
-A tool for creating a hierarchical logical _condition_ from _expressions_ blocks, mainly
+A tool for creating a hierarchical logical _conditions_ from _expression_ blocks, mainly
 to be used in - but not limited to - an sql _where_ statement.
-
-This package does not _evaluate_ the conditions or _parse_ its textual representation.
 
 ## Terminology
 
@@ -53,10 +51,14 @@ import { Condition } from "@marianmeres/condition-builder";
 
 ## Example
 
+The core api consist of 2 methods `and(...)` and `or(...)`. For the _first_ call
+you can use any one of them.
+
 ```ts
 const c = new Condition();
 
 c.and("a", OPERATOR.eq, "b");
+// c.or("a", OPERATOR.eq, "b"); // same effect as above for the first call
 assertEquals(c.toString(), "a=b");
 
 c.or("c", OPERATOR.neq, "d");
@@ -167,3 +169,7 @@ providing your own custom `renderOperator` function.
 const e = new Expression("foo", "==", "bar");
 assertEquals(e.toString(), "foo==bar");
 ```
+
+## Related
+
+[@marianmeres/condition-parser](https://github.com/marianmeres/condition-parser)
