@@ -51,7 +51,7 @@ import { Condition } from "@marianmeres/condition-builder";
 
 ## Example
 
-The core api consist of 2 methods `and(...)` and `or(...)`. For the _first_ call
+The core api consists of 2 methods `and(...)` and `or(...)`. For the _first_ call
 you can use any one of them.
 
 ```ts
