@@ -1,6 +1,6 @@
 # @marianmeres/condition-builder
 
-A tool for creating a hierarchical logical _conditions_ from _expression_ blocks, mainly
+A tool for creating hierarchical logical _conditions_ and _expressions_, mainly
 to be used in - but not limited to - an sql _where_ statement.
 
 ## Terminology
