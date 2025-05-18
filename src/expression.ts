@@ -57,10 +57,8 @@ export type Validator = (context: ExpressionContext) => void;
 /** Function to render expression data items. */
 export type Renderer = (context: ExpressionContext) => string;
 
-/** Expression options used for validation and rendering. */
-export interface ExpressionOptions {
-	/** Function used to validate expression data. No-op by default. */
-	validate?: Validator;
+/** Options used for output rendering */
+export interface ExpressionRenderersOptions {
 	/**
 	 * Function used to convert expression key to string. No-op by default.
 	 * @example For postgresql dialect
@@ -87,6 +85,12 @@ export interface ExpressionOptions {
 	renderOperator?: Renderer;
 }
 
+/** Expression options used for validation and rendering. */
+export interface ExpressionOptions extends ExpressionRenderersOptions {
+	/** Function used to validate expression data. No-op by default. */
+	validate?: Validator;
+}
+
 /**
  * Base condition building block. Consists of `key`, `operator` and `value`.
  *
@@ -101,7 +105,7 @@ export class Expression {
 		public key: string,
 		public operator: ExpressionOperator,
 		public value: any,
-		public options: ExpressionOptions = {},
+		public options: ExpressionOptions = {}
 	) {
 		this.options?.validate?.({
 			key: this.key,
@@ -120,8 +124,11 @@ export class Expression {
 	}
 
 	/** Return internal representation as final textual outcome. */
-	toString(): string {
-		let { renderKey, renderOperator, renderValue } = this.options || {};
+	toString(options: Partial<ExpressionRenderersOptions> = {}): string {
+		let { renderKey, renderOperator, renderValue } = {
+			...(this.options || {}),
+			...(options || {}),
+		};
 
 		// fallback to defaults if options are not provided
 		renderKey ??= ({ key }) => `${key}`;

@@ -2,6 +2,7 @@
 
 import {
 	Expression,
+	type ExpressionRenderersOptions,
 	type ExpressionContext,
 	type ExpressionOperator,
 	type ExpressionOptions,
@@ -20,7 +21,7 @@ export type ConditionContent = {
 /** Internal represendation as POJO. */
 export type ConditionDump = {
 	operator: ConditionJoinOperator;
-	condition: ConditionDump | undefined;
+	condition?: ConditionDump | undefined;
 	expression: ExpressionContext | undefined;
 }[];
 
@@ -44,7 +45,7 @@ export class Condition {
 		key: string,
 		operator: ExpressionOperator,
 		value: any,
-		condOperator: ConditionJoinOperator,
+		condOperator: ConditionJoinOperator
 	): Condition {
 		// console.log("addExpression", condOperator, key, operator, value);
 		this.#setCurrentAs(condOperator);
@@ -58,7 +59,7 @@ export class Condition {
 
 	#addCondition(
 		condition: Condition,
-		operator: ConditionJoinOperator,
+		operator: ConditionJoinOperator
 	): Condition {
 		this.#setCurrentAs(operator);
 		condition.options = this.options;
@@ -76,7 +77,7 @@ export class Condition {
 	and(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any,
+		value?: any
 	): Condition {
 		return keyOrCond instanceof Condition
 			? this.#addCondition(keyOrCond, "and")
@@ -93,7 +94,7 @@ export class Condition {
 	or(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any,
+		value?: any
 	): Condition {
 		return keyOrCond instanceof Condition
 			? this.#addCondition(keyOrCond, "or")
@@ -113,10 +114,11 @@ export class Condition {
 	/** Creates new instance from dump (POJO). Oposite of `dump`. */
 	static restore(
 		dump: string | ConditionDump,
-		options: ExpressionOptions = {},
+		options: ExpressionOptions = {}
 	): Condition {
 		const cond = new Condition(options);
-		const content: ConditionDump = typeof dump === "string" ? JSON.parse(dump) : dump;
+		const content: ConditionDump =
+			typeof dump === "string" ? JSON.parse(dump) : dump;
 
 		for (const [i, expOrCond] of content.entries()) {
 			if (!expOrCond?.condition && !expOrCond?.expression) {
@@ -131,7 +133,7 @@ export class Condition {
 			if (expOrCond?.condition) {
 				const restored = Condition.restore(
 					JSON.stringify(expOrCond.condition),
-					options,
+					options
 				);
 				cond[method](restored);
 			} else {
@@ -145,7 +147,7 @@ export class Condition {
 	}
 
 	/** Return internal representation as final textual outcome. */
-	toString(): string {
+	toString(options: Partial<ExpressionRenderersOptions> = {}): string {
 		if (!this.#content.length) return "";
 		return (
 			this.#content
@@ -153,9 +155,9 @@ export class Condition {
 					if (!o.condition && !o.expression) return m;
 					m.push(
 						o.condition
-							? `(${o.condition.toString()})`
-							: o.expression!.toString(),
-						o.operator,
+							? `(${o.condition.toString(options)})`
+							: o.expression!.toString(options),
+						o.operator
 					);
 					return m;
 				}, [] as string[])
