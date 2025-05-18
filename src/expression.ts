@@ -56,6 +56,9 @@ export type Validator = (context: ExpressionContext) => void;
 
 /** Function to render expression data items. */
 export type Renderer = (context: ExpressionContext) => string;
+export type RendererMaybe = (
+	context: ExpressionContext
+) => string | null | undefined | false | void;
 
 /** Options used for output rendering */
 export interface ExpressionRenderersOptions {
@@ -83,6 +86,11 @@ export interface ExpressionRenderersOptions {
 	 * Function used to convert expression operator to string.
 	 */
 	renderOperator?: Renderer;
+	/** Function to render expression to string. If provided, will be used with
+	 * higher priority than individual renderers. If will return false-y, normal
+	 * render flow (key, operator, value) will normally follow.
+	 */
+	renderExpression?: RendererMaybe;
 }
 
 /** Expression options used for validation and rendering. */
@@ -125,10 +133,19 @@ export class Expression {
 
 	/** Return internal representation as final textual outcome. */
 	toString(options: Partial<ExpressionRenderersOptions> = {}): string {
-		let { renderKey, renderOperator, renderValue } = {
+		let { renderKey, renderOperator, renderValue, renderExpression } = {
 			...(this.options || {}),
 			...(options || {}),
 		};
+
+		const ctx = this.toJSON();
+
+		// renderExpression is considered higher priority
+		if (typeof renderExpression === "function") {
+			const rendered = renderExpression(ctx);
+			// if truthy, return early
+			if (rendered) return rendered;
+		}
 
 		// fallback to defaults if options are not provided
 		renderKey ??= ({ key }) => `${key}`;
@@ -136,7 +153,7 @@ export class Expression {
 			(OPERATOR_SYMBOL as any)[`${operator}`] || `${operator}`;
 		renderValue ??= ({ value }) => `${value}`;
 
-		const c = this.toJSON();
-		return [renderKey(c), renderOperator(c), renderValue(c)].join("");
+		//
+		return [renderKey(ctx), renderOperator(ctx), renderValue(ctx)].join("");
 	}
 }

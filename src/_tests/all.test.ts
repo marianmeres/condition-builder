@@ -39,8 +39,8 @@ Deno.test("condition", () => {
 			.or(
 				new Condition()
 					.and("i", OPERATOR.match, "j")
-					.and("k", OPERATOR.nmatch, "l"),
-			),
+					.and("k", OPERATOR.nmatch, "l")
+			)
 	);
 
 	const expected = "a=b or c!=d or (e<f and g=h or (i~*j and k!~*l))";
@@ -71,6 +71,20 @@ Deno.test("validator and custom renderers", () => {
 
 	// this must throw
 	assertThrows(() => c.and("baz", OPERATOR.neq, "bat"));
+});
+
+Deno.test("custom renderExpression renderer", () => {
+	const c = new Condition({
+		renderExpression({ key, operator, value }) {
+			if (key == "1" && ["=", OPERATOR.eq].includes(operator) && value == "1") {
+				return "true";
+			}
+			// return undefined;
+		},
+	});
+	c.and("1", OPERATOR.eq, "1").and("foo", "<", "bar");
+
+	assertEquals(c.toString(), "true and foo<bar");
 });
 
 Deno.test("restore with options", () => {
@@ -104,7 +118,7 @@ Deno.test("(a=b) and (c=d)", () => {
 	const c = new Condition();
 
 	c.and(new Condition().and("a", OPERATOR.eq, "b")).and(
-		new Condition().and("c", OPERATOR.eq, "d"),
+		new Condition().and("c", OPERATOR.eq, "d")
 	);
 	// console.log(c.toString(), c.toJSON());
 
