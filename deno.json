@@ -7,11 +7,16 @@
 		"test:no-watch": "deno test"
 	},
 	"imports": {
-		"@std/assert": "jsr:@std/assert@^1.0.13"
+		"@std/assert": "jsr:@std/assert@^1.0.14"
 	},
 	"fmt": {
 		"useTabs": true,
 		"lineWidth": 90,
 		"indentWidth": 4
+	},
+	"lint": {
+		"rules": {
+			"exclude": ["no-explicit-any"]
+		}
 	}
 }

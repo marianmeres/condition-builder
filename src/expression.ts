@@ -1,5 +1,3 @@
-// deno-lint-ignore-file no-explicit-any
-
 /**
  * Map of supported operators.
  * Inspired from: https://docs.postgrest.org/en/v12/references/api/tables_views.html
