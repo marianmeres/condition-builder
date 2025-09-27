@@ -169,3 +169,11 @@ Deno.test("a=b and c=d or e=f and g=h", () => {
 	assertEquals(c.toJSON(), c2.toJSON());
 	assertEquals(c2.toString(), expected);
 });
+
+Deno.test("empty is ignored in string output", () => {
+	const c = new Condition();
+
+	c.and(new Condition().and(new Condition()).and(new Condition()));
+
+	assertEquals(c.toString(), "");
+});

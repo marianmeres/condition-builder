@@ -151,12 +151,17 @@ export class Condition {
 			this.#content
 				.reduce((m, o) => {
 					if (!o.condition && !o.expression) return m;
-					m.push(
-						o.condition
-							? `(${o.condition.toString(options)})`
-							: o.expression!.toString(options),
-						o.operator
-					);
+					const val = o.condition
+						? `(${o.condition.toString(options)})`
+						: o.expression!.toString(options);
+					if (val !== "()") {
+						m.push(
+							o.condition
+								? `(${o.condition.toString(options)})`
+								: o.expression!.toString(options),
+							o.operator
+						);
+					}
 					return m;
 				}, [] as string[])
 				// strip last block operator
