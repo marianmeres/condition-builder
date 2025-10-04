@@ -17,7 +17,10 @@ export const OPERATOR = {
 	nis: "nis",
 	in: "in",
 	nin: "nin", // not in
+	// ltree related
 	ltree: "ltree",
+	ancestor: "ancestor", // ancestor or equal
+	descendant: "descendant", // descendant or equal
 } as const;
 
 /** Built-in conversion map of operators to operator symbols (targeting pg dialect). */
@@ -36,7 +39,10 @@ export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
 	nis: " is not ",
 	in: " in ",
 	nin: " not in ",
-	ltree: "~", // https://www.postgresql.org/docs/17/ltree.html
+	// https://www.postgresql.org/docs/17/ltree.html
+	ltree: "~",
+	ancestor: "@>", // A @> B --> "A is ancestor of B"
+	descendant: "<@", // B <@ A --> "B is descendant of A"
 } as const;
 
 /** Key of `OPERATOR`. */
