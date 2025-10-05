@@ -40,7 +40,7 @@ deno add jsr:@marianmeres/condition-builder
 nodejs
 
 ```sh
-npx jsr add @marianmeres/condition-builder
+npm i @marianmeres/condition-builder
 ```
 
 ## Usage
