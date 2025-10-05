@@ -1,11 +1,11 @@
 import { assertEquals, assertThrows } from "@std/assert";
+import { Condition } from "../src/condition.ts";
 import {
 	Expression,
 	type ExpressionContext,
 	OPERATOR,
 	type Validator,
-} from "../expression.ts";
-import { Condition } from "../condition.ts";
+} from "../src/expression.ts";
 
 Deno.test("expression", () => {
 	const e = new Expression("foo", OPERATOR.eq, "bar");
