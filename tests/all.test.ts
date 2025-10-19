@@ -177,3 +177,15 @@ Deno.test("empty is ignored in string output", () => {
 
 	assertEquals(c.toString(), "");
 });
+
+Deno.test("not", () => {
+	const c = new Condition();
+
+	c.and("a", OPERATOR.eq, "b")
+		.andNot("c", OPERATOR.eq, "d")
+		.orNot(
+			new Condition().and("e", OPERATOR.eq, "f").andNot("g", OPERATOR.eq, "h")
+		);
+
+	assertEquals(c.toString(), "a=b and not c=d or not (e=f and not g=h)");
+});

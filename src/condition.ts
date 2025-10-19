@@ -7,7 +7,7 @@ import {
 } from "./expression.ts";
 
 /** Operator used to logically combine conditions. Supported are `and` and `or`.*/
-export type ConditionJoinOperator = "and" | "or";
+export type ConditionJoinOperator = "and" | "or" | "andNot" | "orNot";
 
 /** Internal representation type. */
 export type ConditionContent = {
@@ -65,6 +65,28 @@ export class Condition {
 		return this;
 	}
 
+	#and(
+		joinOperation: "and" | "andNot",
+		keyOrCond: string | Condition,
+		operator?: ExpressionOperator,
+		value?: any
+	): Condition {
+		return keyOrCond instanceof Condition
+			? this.#addCondition(keyOrCond, joinOperation)
+			: this.#addExpression(keyOrCond, operator!, value, joinOperation);
+	}
+
+	#or(
+		joinOperation: "or" | "orNot",
+		keyOrCond: string | Condition,
+		operator?: ExpressionOperator,
+		value?: any
+	): Condition {
+		return keyOrCond instanceof Condition
+			? this.#addCondition(keyOrCond, joinOperation)
+			: this.#addExpression(keyOrCond, operator!, value, joinOperation);
+	}
+
 	/** Adds data as a new `Expression` as an _and_ logical block. */
 	and(key: string, operator: ExpressionOperator, value: any): Condition;
 
@@ -77,9 +99,22 @@ export class Condition {
 		operator?: ExpressionOperator,
 		value?: any
 	): Condition {
-		return keyOrCond instanceof Condition
-			? this.#addCondition(keyOrCond, "and")
-			: this.#addExpression(keyOrCond, operator!, value, "and");
+		return this.#and("and", keyOrCond, operator, value);
+	}
+
+	/** Adds data as a new `Expression` as an _and not_ logical block. */
+	andNot(key: string, operator: ExpressionOperator, value: any): Condition;
+
+	/** Adds `Condition` as an _and not_ logical block. */
+	andNot(condition: Condition): Condition;
+
+	/** Adds `Condition` or `Expression` data as an _and not_ logical block. */
+	andNot(
+		keyOrCond: string | Condition,
+		operator?: ExpressionOperator,
+		value?: any
+	): Condition {
+		return this.#and("andNot", keyOrCond, operator, value);
 	}
 
 	/** Adds data as a new `Expression` as an _or_ logical block. */
@@ -88,15 +123,28 @@ export class Condition {
 	/** Adds `Condition` as an _or_ logical block. */
 	or(condition: Condition): Condition;
 
-	/** Adds `Condition` or `Expression` data as an _or_ logical block. */
+	/** Adds `Condition` or `Expression` data as an _or not_ logical block. */
 	or(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
 		value?: any
 	): Condition {
-		return keyOrCond instanceof Condition
-			? this.#addCondition(keyOrCond, "or")
-			: this.#addExpression(keyOrCond, operator!, value, "or");
+		return this.#or("or", keyOrCond, operator, value);
+	}
+
+	/** Adds data as a new `Expression` as an _or not_ logical block. */
+	orNot(key: string, operator: ExpressionOperator, value: any): Condition;
+
+	/** Adds `Condition` as an _or_ logical block. */
+	orNot(condition: Condition): Condition;
+
+	/** Adds `Condition` or `Expression` data as an _or not_ logical block. */
+	orNot(
+		keyOrCond: string | Condition,
+		operator?: ExpressionOperator,
+		value?: any
+	): Condition {
+		return this.#or("orNot", keyOrCond, operator, value);
 	}
 
 	/** Returns internal representation as POJO. */
@@ -126,7 +174,8 @@ export class Condition {
 			// this is a little tricky - we need to use previous (unless we're at 0)
 			// because the "and(...)", "or(...)" apis always update the current operator
 			// before adding the new one
-			const method: "and" | "or" = content[Math.max(i - 1, 0)].operator;
+			const method: "and" | "or" | "andNot" | "orNot" =
+				content[Math.max(i - 1, 0)].operator;
 
 			if (expOrCond?.condition) {
 				const restored = Condition.restore(
@@ -147,6 +196,12 @@ export class Condition {
 	/** Return internal representation as final textual outcome. */
 	toString(options: Partial<ExpressionRenderersOptions> = {}): string {
 		if (!this.#content.length) return "";
+		const operatorsMap = {
+			and: "and",
+			andNot: "and not",
+			or: "or",
+			orNot: "or not",
+		};
 		return (
 			this.#content
 				.reduce((m, o) => {
@@ -159,7 +214,7 @@ export class Condition {
 							o.condition
 								? `(${o.condition.toString(options)})`
 								: o.expression!.toString(options),
-							o.operator
+							operatorsMap[o.operator]
 						);
 					}
 					return m;
