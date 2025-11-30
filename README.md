@@ -1,5 +1,8 @@
 # @marianmeres/condition-builder
 
+[![NPM version](https://img.shields.io/npm/v/@marianmeres/condition-builder.svg)](https://www.npmjs.com/package/@marianmeres/condition-builder)
+[![JSR version](https://jsr.io/badges/@marianmeres/condition-builder)](https://jsr.io/@marianmeres/condition-builder)
+
 A tool for creating hierarchical logical _conditions_ and _expressions_, mainly
 to be used in - but not limited to - an sql _where_ statement.
 
