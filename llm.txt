@@ -1,0 +1,258 @@
+# @marianmeres/condition-builder - LLM Context Document
+
+## Package Overview
+
+**Name:** @marianmeres/condition-builder
+**Version:** 1.9.1
+**Author:** Marian Meres
+**License:** MIT
+**Repository:** https://github.com/marianmeres/condition-builder
+
+A TypeScript library for programmatically building hierarchical logical conditions and expressions, primarily designed for constructing SQL WHERE clauses but applicable to any logical condition building.
+
+## Runtime & Build
+
+- **Primary Runtime:** Deno (uses deno.json for configuration)
+- **Secondary Distribution:** npm (via build script)
+- **Module Format:** ESM (type: "module")
+- **Entry Point:** src/mod.ts (Deno) / dist/mod.js (npm)
+
+## File Structure
+
+```
+/
+├── src/
+│   ├── mod.ts           # Main export barrel file
+│   ├── expression.ts    # Expression class and OPERATOR constants
+│   └── condition.ts     # Condition class (main API)
+├── tests/
+│   └── all.test.ts      # Comprehensive test suite
+├── scripts/
+│   └── build-npm.ts     # npm package build script
+├── deno.json            # Deno configuration
+├── README.md            # Documentation
+└── LICENSE              # MIT license
+```
+
+## Core Concepts
+
+### Expression (src/expression.ts)
+
+The atomic building block representing: `key` `operator` `value`
+
+**Example:** `foo=bar`, `age>18`, `name ilike '%john%'`
+
+**Class:** `Expression`
+```typescript
+class Expression {
+  constructor(
+    key: string,
+    operator: ExpressionOperator,
+    value: any,
+    options?: ExpressionOptions
+  )
+  toJSON(): ExpressionContext
+  toString(options?: ExpressionRenderersOptions): string
+}
+```
+
+### Condition (src/condition.ts)
+
+A hierarchical collection of expressions and/or nested conditions joined by logical operators.
+
+**Example:** `a=b or (c>d and (e<f or g!=h))`
+
+**Class:** `Condition`
+```typescript
+class Condition {
+  constructor(options?: ExpressionOptions)
+  and(key, operator, value): Condition
+  and(condition: Condition): Condition
+  andNot(key, operator, value): Condition
+  andNot(condition: Condition): Condition
+  or(key, operator, value): Condition
+  or(condition: Condition): Condition
+  orNot(key, operator, value): Condition
+  orNot(condition: Condition): Condition
+  toJSON(): ConditionDump
+  dump(): string
+  static restore(dump: string | ConditionDump, options?: ExpressionOptions): Condition
+  toString(options?: ExpressionRenderersOptions): string
+}
+```
+
+## Type Definitions
+
+### ExpressionContext
+```typescript
+interface ExpressionContext {
+  key: string;
+  operator: ExpressionOperator;
+  value: any;
+}
+```
+
+### ExpressionOptions
+```typescript
+interface ExpressionOptions extends ExpressionRenderersOptions {
+  validate?: Validator;  // (context: ExpressionContext) => void
+}
+```
+
+### ExpressionRenderersOptions
+```typescript
+interface ExpressionRenderersOptions {
+  renderKey?: Renderer;         // (ctx) => string
+  renderValue?: Renderer;       // (ctx) => string
+  renderOperator?: Renderer;    // (ctx) => string
+  renderExpression?: RendererMaybe;  // (ctx) => string | null | undefined | false | void
+}
+```
+
+### ConditionJoinOperator
+```typescript
+type ConditionJoinOperator = "and" | "or" | "andNot" | "orNot";
+```
+
+## Built-in Operators (OPERATOR constant)
+
+```typescript
+OPERATOR = {
+  eq: "eq",       // equals
+  neq: "neq",     // not equal
+  gt: "gt",       // greater than
+  gte: "gte",     // greater than or equal
+  lt: "lt",       // less than
+  lte: "lte",     // less than or equal
+  like: "like",   // ILIKE (case-insensitive)
+  nlike: "nlike", // NOT ILIKE
+  match: "match", // regex match ~*
+  nmatch: "nmatch", // not regex match !~*
+  is: "is",       // IS (for NULL checks)
+  nis: "nis",     // IS NOT
+  in: "in",       // IN
+  nin: "nin",     // NOT IN
+  ltree: "ltree", // PostgreSQL ltree ~
+  ancestor: "ancestor",     // PostgreSQL ltree @>
+  descendant: "descendant", // PostgreSQL ltree <@
+}
+```
+
+## Built-in Operator Symbols (OPERATOR_SYMBOL constant)
+
+Default PostgreSQL-dialect symbol mappings:
+```typescript
+OPERATOR_SYMBOL = {
+  eq: "=",
+  neq: "!=",
+  gt: ">",
+  gte: ">=",
+  lt: "<",
+  lte: "<=",
+  like: " ilike ",
+  nlike: " not ilike ",
+  match: "~*",
+  nmatch: "!~*",
+  is: " is ",
+  nis: " is not ",
+  in: " in ",
+  nin: " not in ",
+  ltree: "~",
+  ancestor: "@>",
+  descendant: "<@",
+}
+```
+
+## Key Features
+
+1. **Fluent API:** Chainable methods (`c.and(...).or(...).and(...)`)
+2. **Nested Conditions:** Pass Condition instances to and/or methods for hierarchical grouping
+3. **NOT Support:** `andNot()` and `orNot()` methods for negation
+4. **Validation:** Custom validation function to restrict allowed keys/operators/values
+5. **Custom Rendering:** Separate renderers for key, value, operator, or entire expression
+6. **Serialization:** `dump()` and `restore()` for persistence
+7. **POJO Export:** `toJSON()` for manual processing/evaluation
+8. **Dialect Agnostic:** Default PostgreSQL symbols, but fully customizable
+
+## Usage Patterns
+
+### Basic Usage
+```typescript
+import { Condition, OPERATOR } from "@marianmeres/condition-builder";
+
+const c = new Condition();
+c.and("status", OPERATOR.eq, "active")
+ .and("age", OPERATOR.gte, 18);
+// Output: status=active and age>=18
+```
+
+### Nested Conditions
+```typescript
+const c = new Condition();
+c.and("a", OPERATOR.eq, "b")
+ .and(new Condition()
+   .and("c", OPERATOR.eq, "d")
+   .or("e", OPERATOR.eq, "f")
+ );
+// Output: a=b and (c=d or e=f)
+```
+
+### With Validation
+```typescript
+const c = new Condition({
+  validate: (ctx) => {
+    const allowed = ["status", "age", "name"];
+    if (!allowed.includes(ctx.key)) {
+      throw new TypeError(`Key '${ctx.key}' not allowed`);
+    }
+  }
+});
+```
+
+### PostgreSQL Rendering
+```typescript
+const c = new Condition({
+  renderKey: (ctx) => `"${ctx.key.replaceAll('"', '""')}"`,
+  renderValue: (ctx) => `'${ctx.value.toString().replaceAll("'", "''")}'`,
+});
+```
+
+### Serialization
+```typescript
+const dump = condition.dump();  // JSON string
+const restored = Condition.restore(dump);
+```
+
+## Development Commands (Deno)
+
+```bash
+deno task test           # Run tests with watch
+deno task test:no-watch  # Run tests once
+deno task npm:build      # Build npm package
+deno task npm:publish    # Build and publish to npm
+```
+
+## Dependencies
+
+- @std/assert (testing)
+- @std/fs (build script)
+- @std/path (build script)
+
+## Related Package
+
+[@marianmeres/condition-parser](https://github.com/marianmeres/condition-parser) - Parser for condition strings (reverse operation)
+
+## Code Style
+
+- Uses tabs for indentation
+- Line width: 90
+- Indent width: 4
+- Linting excludes: no-explicit-any
+
+## Private Implementation Notes
+
+- Condition uses private `#content` array to store ConditionContent
+- `#setCurrentAs()` updates the last item's operator before adding new item
+- `#addExpression()` and `#addCondition()` are internal add methods
+- `restore()` handles operator indexing quirk (uses previous item's operator)
+- Empty conditions are filtered out in `toString()` output

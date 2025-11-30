@@ -173,3 +173,10 @@ assertEquals(e.toString(), "foo==bar");
 ## Related
 
 [@marianmeres/condition-parser](https://github.com/marianmeres/condition-parser)
+
+## Package Identity
+
+- **Name:** @marianmeres/condition-builder
+- **Author:** Marian Meres
+- **Repository:** https://github.com/marianmeres/condition-builder
+- **License:** MIT
