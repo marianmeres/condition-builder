@@ -1,6 +1,32 @@
 /**
+ * Expression and rendering utilities for building logical conditions.
+ *
+ * This module provides the base {@linkcode Expression} class and related types
+ * for building individual logical expressions consisting of a key, operator, and value.
+ *
+ * @example
+ * ```ts
+ * import { Expression, OPERATOR } from "@marianmeres/condition-builder";
+ *
+ * const expr = new Expression("age", OPERATOR.gte, 18);
+ * console.log(expr.toString()); // "age>=18"
+ * ```
+ *
+ * @module
+ */
+
+/**
  * Map of supported operators.
- * Inspired from: https://docs.postgrest.org/en/v12/references/api/tables_views.html
+ *
+ * Inspired by [PostgREST operators](https://docs.postgrest.org/en/v12/references/api/tables_views.html).
+ *
+ * @example
+ * ```ts
+ * import { OPERATOR } from "@marianmeres/condition-builder";
+ *
+ * console.log(OPERATOR.eq);  // "eq"
+ * console.log(OPERATOR.gte); // "gte"
+ * ```
  */
 export const OPERATOR = {
 	eq: "eq",
@@ -58,8 +84,23 @@ export interface ExpressionContext {
 /** Function used to validate expression data. No-op by default. */
 export type Validator = (context: ExpressionContext) => void;
 
-/** Function to render expression data items. */
+/**
+ * Function to render expression data items.
+ *
+ * @param context - The expression context containing key, operator, and value.
+ * @returns The rendered string representation.
+ */
 export type Renderer = (context: ExpressionContext) => string;
+
+/**
+ * Function to optionally render expression data items.
+ *
+ * Returns a string if rendering should be applied, or a falsy value
+ * to indicate that the default rendering should be used instead.
+ *
+ * @param context - The expression context containing key, operator, and value.
+ * @returns The rendered string, or a falsy value to fall back to default rendering.
+ */
 export type RendererMaybe = (
 	context: ExpressionContext
 ) => string | null | undefined | false | void;
@@ -126,7 +167,18 @@ export class Expression {
 		});
 	}
 
-	/** Returns internal representation as POJO. */
+	/**
+	 * Returns the expression data as a plain object.
+	 *
+	 * @returns A plain object containing the key, operator, and value.
+	 *
+	 * @example
+	 * ```ts
+	 * const expr = new Expression("name", OPERATOR.eq, "John");
+	 * const data = expr.toJSON();
+	 * // { key: "name", operator: "eq", value: "John" }
+	 * ```
+	 */
 	toJSON(): ExpressionContext {
 		return {
 			key: this.key,
@@ -135,7 +187,29 @@ export class Expression {
 		};
 	}
 
-	/** Return internal representation as final textual outcome. */
+	/**
+	 * Renders the expression as a string.
+	 *
+	 * Uses the configured renderers to format the key, operator, and value.
+	 * If a custom `renderExpression` function is provided and returns a truthy
+	 * value, that value is used directly. Otherwise, the individual renderers
+	 * are applied.
+	 *
+	 * @param options - Optional rendering options that override instance options.
+	 * @returns The rendered string representation of the expression.
+	 *
+	 * @example
+	 * ```ts
+	 * const expr = new Expression("age", OPERATOR.gte, 18);
+	 * expr.toString(); // "age>=18"
+	 *
+	 * // With custom renderers
+	 * expr.toString({
+	 *   renderKey: (ctx) => `"${ctx.key}"`,
+	 *   renderValue: (ctx) => `'${ctx.value}'`
+	 * }); // '"age">=\'18\''
+	 * ```
+	 */
 	toString(options: Partial<ExpressionRenderersOptions> = {}): string {
 		let { renderKey, renderOperator, renderValue, renderExpression } = {
 			...(this.options || {}),

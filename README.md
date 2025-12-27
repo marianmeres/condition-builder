@@ -2,9 +2,10 @@
 
 [![NPM version](https://img.shields.io/npm/v/@marianmeres/condition-builder.svg)](https://www.npmjs.com/package/@marianmeres/condition-builder)
 [![JSR version](https://jsr.io/badges/@marianmeres/condition-builder)](https://jsr.io/@marianmeres/condition-builder)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A tool for creating hierarchical logical _conditions_ and _expressions_, mainly
-to be used in - but not limited to - an sql _where_ statement.
+to be used in - but not limited to - an SQL _where_ statement.
 
 ## Terminology
 
@@ -19,7 +20,7 @@ _Expression_ is the base building block. It consists of `key`, `operator` and `v
 ### Condition
 
 _Condition_ is a hierarchical collection of one or more _expressions_ or _conditions_
-joined by a logical join operator, which is either `and` or `or`.
+joined by a logical join operator: `and`, `or`, `andNot`, or `orNot`.
 
 ```ts
 // condition with one expression
@@ -78,11 +79,11 @@ c.or(
 		),
 );
 
-assertEquals(c.toString(), "a=b or c!=d or (e<f and g=h or (i~j and k!~l))");
+assertEquals(c.toString(), "a=b or c!=d or (e<f and g=h or (i~*j and k!~*l))");
 
 // dump & restore
 const c2 = Condition.restore(c.dump());
-assertEquals(c2.toString(), "a=b or c!=d or (e<f and g=h or (i~j and k!~l))");
+assertEquals(c2.toString(), "a=b or c!=d or (e<f and g=h or (i~*j and k!~*l))");
 
 // or export the condition as POJO structure for manual processing (eg evaluation)
 const structure = c.toJSON();
@@ -152,20 +153,24 @@ providing your own custom `renderOperator` function.
 ```ts
 // default opinionated conversion map of operators to operator symbols.
 {
-    eq: "=", 
-    neq: "!=", 
-    gt: ">", 
-    gte: ">=", 
-    lt: "<", 
+    eq: "=",
+    neq: "!=",
+    gt: ">",
+    gte: ">=",
+    lt: "<",
     lte: "<=",
-    like: " ilike ", 
+    like: " ilike ",
     nlike: " not ilike ",
-    match: "~*", 
-    nmatch: "!~*", 
+    match: "~*",
+    nmatch: "!~*",
     is: " is ",
     nis: " is not ",
-    in: " in ", 
+    in: " in ",
     nin: " not in ",
+    // PostgreSQL ltree operators
+    ltree: "~",
+    ancestor: "@>",
+    descendant: "<@",
 };
 
 // but you can safely use any operator you see fit...
@@ -173,13 +178,10 @@ const e = new Expression("foo", "==", "bar");
 assertEquals(e.toString(), "foo==bar");
 ```
 
+## API Reference
+
+See [API.md](./API.md) for the complete API documentation.
+
 ## Related
 
 [@marianmeres/condition-parser](https://github.com/marianmeres/condition-parser)
-
-## Package Identity
-
-- **Name:** @marianmeres/condition-builder
-- **Author:** Marian Meres
-- **Repository:** https://github.com/marianmeres/condition-builder
-- **License:** MIT
