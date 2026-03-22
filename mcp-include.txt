@@ -1,1 +1,2 @@
-TypeScript library for building SQL WHERE conditions with nested AND/OR/NOT logical operators, chainable fluent API, customizable validation and rendering, PostgreSQL operator symbols by default.
+TypeScript library for building SQL WHERE conditions with nested AND/OR/NOT logical operators, 
+chainable fluent API, customizable validation and rendering, PostgreSQL operator symbols by default.
