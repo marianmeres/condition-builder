@@ -71,8 +71,22 @@ export const OPERATOR_SYMBOL: Record<keyof typeof OPERATOR, string> = {
 	descendant: "<@", // B <@ A --> "B is descendant of A"
 } as const;
 
-/** Key of `OPERATOR`. */
-export type ExpressionOperator = keyof typeof OPERATOR | string;
+/**
+ * Operators whose values are treated as lists (array values are rendered
+ * as a parenthesized, comma-separated group).
+ */
+export const LIST_OPERATORS: ReadonlySet<string> = new Set([
+	OPERATOR.in,
+	OPERATOR.nin,
+]);
+
+/**
+ * Key of `OPERATOR`, or any custom operator string.
+ *
+ * The `(string & {})` trick keeps editor autocomplete for the built-in keys
+ * while still allowing arbitrary string operators.
+ */
+export type ExpressionOperator = keyof typeof OPERATOR | (string & {});
 
 /** Core expression internal data. */
 export interface ExpressionContext {
@@ -95,11 +109,13 @@ export type Renderer = (context: ExpressionContext) => string;
 /**
  * Function to optionally render expression data items.
  *
- * Returns a string if rendering should be applied, or a falsy value
- * to indicate that the default rendering should be used instead.
+ * Returns a string if rendering should be applied (including an empty string,
+ * which is honored as "render nothing"), or `null` / `undefined` / `false` /
+ * `void` to fall back to the default per-part rendering.
  *
  * @param context - The expression context containing key, operator, and value.
- * @returns The rendered string, or a falsy value to fall back to default rendering.
+ * @returns The rendered string, or a non-string falsy value to fall back to
+ *          default rendering.
  */
 export type RendererMaybe = (
 	context: ExpressionContext
@@ -119,10 +135,16 @@ export interface ExpressionRenderersOptions {
 	renderKey?: Renderer;
 	/**
 	 * Function used to convert expression value to string. No-op by default.
+	 *
+	 * For list-operator values (`in`, `nin`) passed as arrays, this renderer
+	 * is invoked once per element (with the element substituted into
+	 * `context.value`), and the results are wrapped in parentheses and
+	 * comma-joined.
+	 *
 	 * @example For postgresql dialect
 	 * ```ts
 	 * (context: ExpressionContext): string => {
-	 * return `'${context.key.toString().replaceAll("'", "''")}'`;
+	 * return `'${String(context.value).replaceAll("'", "''")}'`;
 	 * }
 	 * ```
 	 */
@@ -132,8 +154,9 @@ export interface ExpressionRenderersOptions {
 	 */
 	renderOperator?: Renderer;
 	/** Function to render expression to string. If provided, will be used with
-	 * higher priority than individual renderers. If will return false-y, normal
-	 * render flow (key, operator, value) will normally follow.
+	 * higher priority than individual renderers. A returned string (including
+	 * an empty string) is honored; only `null` / `undefined` / `false` / `void`
+	 * falls back to the normal render flow (key, operator, value).
 	 */
 	renderExpression?: RendererMaybe;
 }
@@ -143,6 +166,23 @@ export interface ExpressionOptions extends ExpressionRenderersOptions {
 	/** Function used to validate expression data. No-op by default. */
 	validate?: Validator;
 }
+
+/**
+ * Merge two option objects so that `overrides` wins per-key, but only for
+ * keys whose value is explicitly defined (not `undefined`). This prevents
+ * `{ renderValue: undefined }` from erasing an instance-configured renderer.
+ */
+function mergeOptions<T extends object>(base: T, overrides: Partial<T>): T {
+	const out: any = { ...(base ?? {}) };
+	for (const k of Object.keys(overrides) as (keyof T)[]) {
+		const v = (overrides as any)[k];
+		if (v !== undefined) out[k] = v;
+	}
+	return out;
+}
+
+/** @internal */
+export const __mergeOptionsForTests = mergeOptions;
 
 /**
  * Base condition building block. Consists of `key`, `operator` and `value`.
@@ -171,13 +211,6 @@ export class Expression {
 	 * Returns the expression data as a plain object.
 	 *
 	 * @returns A plain object containing the key, operator, and value.
-	 *
-	 * @example
-	 * ```ts
-	 * const expr = new Expression("name", OPERATOR.eq, "John");
-	 * const data = expr.toJSON();
-	 * // { key: "name", operator: "eq", value: "John" }
-	 * ```
 	 */
 	toJSON(): ExpressionContext {
 		return {
@@ -191,47 +224,49 @@ export class Expression {
 	 * Renders the expression as a string.
 	 *
 	 * Uses the configured renderers to format the key, operator, and value.
-	 * If a custom `renderExpression` function is provided and returns a truthy
-	 * value, that value is used directly. Otherwise, the individual renderers
-	 * are applied.
+	 * If a custom `renderExpression` function is provided and returns a string
+	 * (including an empty string), that value is used directly. Otherwise,
+	 * the individual renderers are applied.
 	 *
-	 * @param options - Optional rendering options that override instance options.
+	 * Array values are rendered as parenthesized comma-separated lists when
+	 * the operator is in {@linkcode LIST_OPERATORS} (`in`, `nin`), with each
+	 * element passed through `renderValue` individually.
+	 *
+	 * @param options - Optional rendering options that override instance
+	 *                  options. Keys whose value is `undefined` are ignored
+	 *                  (they do NOT erase the instance-configured renderer).
 	 * @returns The rendered string representation of the expression.
-	 *
-	 * @example
-	 * ```ts
-	 * const expr = new Expression("age", OPERATOR.gte, 18);
-	 * expr.toString(); // "age>=18"
-	 *
-	 * // With custom renderers
-	 * expr.toString({
-	 *   renderKey: (ctx) => `"${ctx.key}"`,
-	 *   renderValue: (ctx) => `'${ctx.value}'`
-	 * }); // '"age">=\'18\''
-	 * ```
 	 */
 	toString(options: Partial<ExpressionRenderersOptions> = {}): string {
-		let { renderKey, renderOperator, renderValue, renderExpression } = {
-			...(this.options || {}),
-			...(options || {}),
-		};
+		const {
+			renderKey,
+			renderOperator,
+			renderValue,
+			renderExpression,
+		} = mergeOptions<ExpressionRenderersOptions>(this.options ?? {}, options);
 
 		const ctx = this.toJSON();
 
-		// renderExpression is considered higher priority
 		if (typeof renderExpression === "function") {
 			const rendered = renderExpression(ctx);
-			// if truthy, return early
-			if (rendered) return rendered;
+			// honor any string return, including ""
+			if (typeof rendered === "string") return rendered;
 		}
 
-		// fallback to defaults if options are not provided
-		renderKey ??= ({ key }) => `${key}`;
-		renderOperator ??= ({ operator }) =>
-			(OPERATOR_SYMBOL as any)[`${operator}`] || `${operator}`;
-		renderValue ??= ({ value }) => `${value}`;
+		const rKey = renderKey ?? (({ key }) => `${key}`);
+		const rOp =
+			renderOperator ??
+			(({ operator }) =>
+				(OPERATOR_SYMBOL as any)[`${operator}`] || `${operator}`);
+		const rVal = renderValue ?? (({ value }) => `${value}`);
 
-		//
-		return [renderKey(ctx), renderOperator(ctx), renderValue(ctx)].join("");
+		const valueStr =
+			Array.isArray(ctx.value) && LIST_OPERATORS.has(`${ctx.operator}`)
+				? "(" +
+					ctx.value.map((v) => rVal({ ...ctx, value: v })).join(",") +
+					")"
+				: rVal(ctx);
+
+		return `${rKey(ctx)}${rOp(ctx)}${valueStr}`;
 	}
 }

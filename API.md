@@ -17,9 +17,16 @@ This document provides a complete reference for all public APIs exposed by `@mar
   - [Validator](#validator)
   - [Renderer](#renderer)
   - [RendererMaybe](#renderermaybe)
+  - [ParameterizedResult](#parameterizedresult)
 - [Constants](#constants)
   - [OPERATOR](#operator)
   - [OPERATOR_SYMBOL](#operator_symbol)
+  - [LIST_OPERATORS](#list_operators)
+- [PostgreSQL presets](#postgresql-presets)
+  - [pgRenderers](#pgrenderers)
+  - [pgParameterized](#pgparameterized)
+  - [pgLiteral](#pgliteral)
+  - [pgQuoteIdentifier](#pgquoteidentifier)
 
 ---
 
@@ -150,6 +157,19 @@ const cond = new Condition()
 cond.toString(); // "a=1 or not (b=2)"
 ```
 
+##### `isEmpty(): boolean`
+
+Returns `true` when the condition has no non-empty expressions or sub-conditions
+(recursive). An empty condition renders to the empty string and contributes
+nothing to a parent's output.
+
+**Example:**
+```ts
+new Condition().isEmpty();                              // true
+new Condition().and(new Condition()).isEmpty();         // true (nested empty)
+new Condition().and("a", OPERATOR.eq, "b").isEmpty();   // false
+```
+
 ##### `toJSON(): ConditionDump`
 
 Returns the condition data as a plain object. Creates a deep clone that can be safely serialized.
@@ -185,9 +205,18 @@ toString(options?: Partial<ExpressionRenderersOptions>): string
 ```
 
 **Parameters:**
-- `options` - Optional rendering options that override instance options.
+- `options` - Optional rendering options. Defined keys override the
+  instance's own options and propagate to nested conditions and
+  expressions. Keys whose value is `undefined` are ignored (they do NOT
+  erase instance-configured renderers).
 
 **Returns:** The rendered string representation.
+
+**Precedence:** SQL's `AND` binds tighter than `OR`. Because the builder
+API is left-associative, the output is auto-parenthesized so that mixed
+AND/OR chains parse as SQL the way they read in code. For example,
+`.and(a).or(b).and(c)` renders as `(a or b) and c`, not `a or b and c`
+(which SQL would parse as `a or (b and c)`).
 
 **Example:**
 ```ts
@@ -299,9 +328,15 @@ toString(options?: Partial<ExpressionRenderersOptions>): string
 ```
 
 **Parameters:**
-- `options` - Optional rendering options that override instance options.
+- `options` - Optional rendering options. Keys whose value is `undefined`
+  are ignored (they do NOT erase instance-configured renderers).
 
 **Returns:** The rendered string representation.
+
+**List-operator array values:** When `operator` is in
+[`LIST_OPERATORS`](#list_operators) (`in` / `nin`) and `value` is an
+`Array`, the value is rendered as a parenthesized, comma-separated list
+with each element passing through `renderValue` individually.
 
 **Example:**
 ```ts
@@ -312,6 +347,10 @@ expr.toString({
   renderKey: (ctx) => `"${ctx.key}"`,
   renderValue: (ctx) => `'${ctx.value}'`
 }); // "age">='18'
+
+// Array + list operator
+new Expression("id", OPERATOR.in, [1, 2, 3]).toString();
+// "id in (1,2,3)"
 ```
 
 ---
@@ -341,9 +380,11 @@ type ConditionDump = {
 ### ExpressionOperator
 
 Type for expression operators. Can be a key from `OPERATOR` or any custom string.
+The `(string & {})` trick preserves editor autocomplete for built-in keys
+while still allowing arbitrary string operators.
 
 ```ts
-type ExpressionOperator = keyof typeof OPERATOR | string
+type ExpressionOperator = keyof typeof OPERATOR | (string & {})
 ```
 
 ### ExpressionContext
@@ -414,7 +455,25 @@ Function type for optionally rendering expression data items.
 type RendererMaybe = (context: ExpressionContext) => string | null | undefined | false | void
 ```
 
-Returns a string if rendering should be applied, or a falsy value to fall back to default rendering.
+Returns a string — including the empty string `""` — to commit that output
+verbatim; returns `null` / `undefined` / `false` / `void` to fall back to
+the default per-part (`renderKey` / `renderOperator` / `renderValue`)
+rendering.
+
+### ParameterizedResult
+
+Return shape of [`pgParameterized`](#pgparameterized).
+
+```ts
+interface ParameterizedResult {
+  options: ExpressionRenderersOptions;
+  params: unknown[];
+}
+```
+
+The `options` are passed to `condition.toString(options)`; the `params`
+array is populated as the condition renders and is intended to be passed
+alongside the rendered SQL to a database driver.
 
 ---
 
@@ -473,3 +532,98 @@ const OPERATOR_SYMBOL = {
 ```
 
 **Note:** Custom operators not in this map will be rendered as-is. You can override the rendering behavior with a custom `renderOperator` function.
+
+### LIST_OPERATORS
+
+Set of operator keys whose values are rendered as parenthesized,
+comma-separated lists when the value is an `Array`.
+
+```ts
+const LIST_OPERATORS: ReadonlySet<string>; // contains "in", "nin"
+```
+
+---
+
+## PostgreSQL presets
+
+Ready-made render presets and helpers for PostgreSQL output. Importing them
+is optional — they are regular `ExpressionRenderersOptions` values / helper
+functions built on the public API.
+
+### pgRenderers
+
+Render options producing inline PostgreSQL-compatible SQL. Identifiers are
+double-quoted, string literals are single-quote-escaped, and primitive
+non-string types (`null`, boolean, number, bigint) render natively.
+
+```ts
+const pgRenderers: ExpressionRenderersOptions
+```
+
+**Example:**
+```ts
+import { Condition, OPERATOR, pgRenderers } from "@marianmeres/condition-builder";
+
+new Condition()
+  .and('fo"o', OPERATOR.eq, "ba'r")
+  .or("active", OPERATOR.is, null)
+  .toString(pgRenderers);
+// "fo""o"='ba''r' or "active" is null
+```
+
+> ⚠️ For untrusted user input prefer [`pgParameterized`](#pgparameterized) —
+> it removes escaping from the trust-critical path entirely.
+
+### pgParameterized
+
+Factory producing render options that emit `$1`, `$2`, … placeholders for
+values, collecting the actual values into a returned `params` array.
+
+```ts
+function pgParameterized(startIndex?: number): ParameterizedResult
+```
+
+**Parameters:**
+- `startIndex` - First placeholder number (default `1`). Useful when the
+  condition is embedded in a larger query that already has parameters.
+
+**Returns:** `{ options, params }` — pass `options` to `condition.toString()`
+and `params` to your database driver.
+
+**Example:**
+```ts
+import { Condition, OPERATOR, pgParameterized } from "@marianmeres/condition-builder";
+
+const { options, params } = pgParameterized();
+const c = new Condition()
+  .and("id", OPERATOR.in, [1, 2, 3])
+  .and("name", OPERATOR.eq, "'; drop table users; --");
+
+const where = c.toString(options);
+// "id" in ($1,$2,$3) and "name"=$4
+// params: [1, 2, 3, "'; drop table users; --"]
+```
+
+Array values with list operators (`in` / `nin`) produce one placeholder
+per element — each is appended to `params` in order.
+
+### pgLiteral
+
+Render a single value as an inline PostgreSQL literal.
+
+```ts
+function pgLiteral(value: unknown): string
+```
+
+Handles `null`/`undefined` → `null`, numbers and bigints → bare numeric,
+booleans → `true`/`false`, everything else coerced to string and
+single-quote-escaped.
+
+### pgQuoteIdentifier
+
+Render a PostgreSQL identifier by double-quoting and escaping embedded
+double quotes.
+
+```ts
+function pgQuoteIdentifier(name: string): string
+```

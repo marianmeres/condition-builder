@@ -7,8 +7,9 @@ TypeScript library for building SQL WHERE conditions with nested logical operato
 ## Structure
 
 - `src/mod.ts` - Entry point
-- `src/expression.ts` - `Expression` class (key-operator-value)
+- `src/expression.ts` - `Expression` class (key-operator-value), `OPERATOR`, `LIST_OPERATORS`
 - `src/condition.ts` - `Condition` class (hierarchical AND/OR/NOT)
+- `src/presets.ts` - `pgRenderers`, `pgParameterized`, `pgLiteral`, `pgQuoteIdentifier`
 - `tests/all.test.ts` - Tests
 
 ## Core API
@@ -33,8 +34,10 @@ Condition.restore(json);  // Restore from JSON
 - Chainable fluent API
 - Operators: `and`, `or`, `andNot`, `orNot`
 - Customizable validation and rendering
-- PostgreSQL operator symbols by default
+- PostgreSQL operator symbols by default; `pgRenderers` / `pgParameterized` for safe output
 - Supports custom operators
+- Arrays + `in`/`nin` render as `(a,b,c)`
+- `toString()` auto-parenthesizes mixed AND/OR to preserve left-associative call order under SQL precedence
 
 ## Commands
 
@@ -47,3 +50,4 @@ deno run -A scripts/build-npm.ts # Build NPM
 
 - [API.md](./API.md) - Full API reference
 - [AGENTS.md](./AGENTS.md) - Machine-readable context
+- [CHANGELOG.md](./CHANGELOG.md) - Release notes & BC-break details

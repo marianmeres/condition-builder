@@ -38,7 +38,14 @@ import {
  */
 export type ConditionJoinOperator = "and" | "or" | "andNot" | "orNot";
 
-/** Internal representation type. */
+/**
+ * Internal representation type.
+ *
+ * Invariant: `content[i].operator` is the join operator between `content[i]`
+ * and `content[i+1]` (i.e. the operator *following* this entry). The operator
+ * on the last entry is a placeholder from when it was appended and is unused
+ * at render time.
+ */
 export type ConditionContent = {
 	operator: ConditionJoinOperator;
 	condition: Condition | undefined;
@@ -57,6 +64,26 @@ export type ConditionDump = {
 	expression: ExpressionContext | undefined;
 }[];
 
+/** Merge helper: `overrides` wins per-key, but `undefined` values are ignored. */
+function mergeRenderOptions(
+	base: Partial<ExpressionRenderersOptions> | undefined,
+	overrides: Partial<ExpressionRenderersOptions> | undefined
+): Partial<ExpressionRenderersOptions> {
+	const out: any = { ...(base ?? {}) };
+	if (overrides) {
+		for (const k of Object.keys(overrides) as (keyof ExpressionRenderersOptions)[]) {
+			const v = (overrides as any)[k];
+			if (v !== undefined) out[k] = v;
+		}
+	}
+	return out;
+}
+
+/** Precedence level of a join operator. AND binds tighter than OR. */
+function joinLevel(op: ConditionJoinOperator): number {
+	return op.startsWith("and") ? 2 : 1;
+}
+
 /** High level class to represent `Expression`s as logical structure. */
 export class Condition {
 	#content: ConditionContent = [];
@@ -66,10 +93,7 @@ export class Condition {
 	#setCurrentAs(operator: ConditionJoinOperator) {
 		if (this.#content.length) {
 			const current = this.#content.at(-1);
-			if (current) {
-				// console.log("setCurrentAs", current.operator, operator);
-				current.operator = operator;
-			}
+			if (current) current.operator = operator;
 		}
 	}
 
@@ -79,7 +103,6 @@ export class Condition {
 		value: any,
 		condOperator: ConditionJoinOperator
 	): Condition {
-		// console.log("addExpression", condOperator, key, operator, value);
 		this.#setCurrentAs(condOperator);
 		this.#content.push({
 			condition: undefined,
@@ -94,7 +117,9 @@ export class Condition {
 		operator: ConditionJoinOperator
 	): Condition {
 		this.#setCurrentAs(operator);
-		condition.options = this.options;
+		// Do NOT mutate the sub-condition's `options`. Each node keeps its own
+		// options (and therefore its own validator); render-time options
+		// propagate down from ancestors via `toString()`.
 		this.#content.push({ condition, operator, expression: undefined });
 		return this;
 	}
@@ -182,19 +207,30 @@ export class Condition {
 	}
 
 	/**
+	 * Returns `true` if this condition contains no non-empty expressions or
+	 * sub-conditions (recursively). An empty condition renders to the empty
+	 * string and contributes nothing to a parent's output.
+	 */
+	isEmpty(): boolean {
+		for (const o of this.#content) {
+			if (o.expression) return false;
+			if (o.condition && !o.condition.isEmpty()) return false;
+		}
+		return true;
+	}
+
+	/**
 	 * Returns the condition data as a plain object.
 	 *
 	 * This creates a deep clone of the internal structure that can be
 	 * safely serialized to JSON.
 	 *
-	 * @returns A plain object representation of the condition.
+	 * Note: serialization uses `JSON.parse(JSON.stringify(...))`, so value
+	 * types that aren't representable in JSON (BigInt, Date, Map, functions,
+	 * Symbol, `undefined`) are not preserved round-trip. If you need to
+	 * persist such values, pre-transform them into JSON-safe primitives.
 	 *
-	 * @example
-	 * ```ts
-	 * const cond = new Condition().and("a", OPERATOR.eq, "b");
-	 * const data = cond.toJSON();
-	 * // [{ operator: "and", expression: { key: "a", operator: "eq", value: "b" } }]
-	 * ```
+	 * @returns A plain object representation of the condition.
 	 */
 	toJSON(): ConditionDump {
 		return JSON.parse(JSON.stringify(this.#content)); // quick-n-dirty
@@ -203,16 +239,9 @@ export class Condition {
 	/**
 	 * Returns the condition as a JSON string.
 	 *
-	 * This is a convenience method equivalent to `JSON.stringify(condition.toJSON())`.
+	 * Convenience method equivalent to `JSON.stringify(condition.toJSON())`.
 	 *
-	 * @returns A JSON string representation of the condition.
-	 *
-	 * @example
-	 * ```ts
-	 * const cond = new Condition().and("a", OPERATOR.eq, "b");
-	 * const json = cond.dump();
-	 * // Store in database, send over network, etc.
-	 * ```
+	 * See {@linkcode toJSON} for notes on value-type limitations.
 	 */
 	dump(): string {
 		return JSON.stringify(this.#content);
@@ -228,16 +257,6 @@ export class Condition {
 	 * @param options - Optional expression options to apply during restoration.
 	 * @returns A new Condition instance with the restored structure.
 	 * @throws {TypeError} If the dump contains invalid data.
-	 *
-	 * @example
-	 * ```ts
-	 * const original = new Condition().and("a", OPERATOR.eq, "b");
-	 * const json = original.dump();
-	 *
-	 * // Later, restore from JSON
-	 * const restored = Condition.restore(json);
-	 * restored.toString(); // "a=b"
-	 * ```
 	 */
 	static restore(
 		dump: string | ConditionDump,
@@ -252,9 +271,10 @@ export class Condition {
 				throw new TypeError("Neither 'condition' nor 'expression' found");
 			}
 
-			// this is a little tricky - we need to use previous (unless we're at 0)
-			// because the "and(...)", "or(...)" apis always update the current operator
-			// before adding the new one
+			// The "and(...)", "or(...)" apis always update the current (preceding)
+			// operator before adding the new entry, so to round-trip we replay the
+			// call using the *previous* entry's stored operator (the last-entry
+			// operator is a placeholder and unused at render time).
 			const method: "and" | "or" | "andNot" | "orNot" =
 				content[Math.max(i - 1, 0)].operator;
 
@@ -266,7 +286,6 @@ export class Condition {
 				cond[method](restored);
 			} else {
 				const { key, operator, value } = expOrCond?.expression!;
-				// console.log(method, key, operator, value);
 				cond[method](key, operator, value);
 			}
 		}
@@ -277,55 +296,80 @@ export class Condition {
 	/**
 	 * Renders the condition as a string.
 	 *
-	 * Recursively processes all nested conditions and expressions,
-	 * joining them with appropriate logical operators.
+	 * Recursively processes all nested conditions and expressions, joining
+	 * them with the appropriate logical operators. SQL operator precedence
+	 * is preserved: because `AND` binds tighter than `OR`, the output is
+	 * auto-parenthesized so that chains built left-associatively via the
+	 * builder API evaluate the way they read.
 	 *
-	 * @param options - Optional rendering options that override instance options.
+	 * Example: `.and("a", eq, 1).or("b", eq, 2).and("c", eq, 3)` renders as
+	 * `(a=1 or b=2) and c=3`, not `a=1 or b=2 and c=3` (which SQL would
+	 * parse as `a=1 or (b=2 and c=3)`).
+	 *
+	 * @param options - Optional rendering options. Any defined keys override
+	 *                  the instance's own options and propagate to nested
+	 *                  conditions and expressions. Keys whose value is
+	 *                  `undefined` are ignored (they do NOT erase the
+	 *                  instance-configured renderer).
 	 * @returns The rendered string representation of the condition.
-	 *
-	 * @example
-	 * ```ts
-	 * const cond = new Condition()
-	 *   .and("a", OPERATOR.eq, "b")
-	 *   .or("c", OPERATOR.neq, "d");
-	 *
-	 * cond.toString(); // "a=b or c!=d"
-	 *
-	 * // With custom renderers for PostgreSQL
-	 * cond.toString({
-	 *   renderKey: (ctx) => `"${ctx.key}"`,
-	 *   renderValue: (ctx) => `'${ctx.value}'`
-	 * }); // '"a"=\'b\' or "c"!=\'d\''
-	 * ```
 	 */
 	toString(options: Partial<ExpressionRenderersOptions> = {}): string {
 		if (!this.#content.length) return "";
-		const operatorsMap = {
+
+		// Propagate: this node's own options serve as defaults, caller's
+		// options as overrides (undefined values are ignored).
+		const effective = mergeRenderOptions(this.options, options);
+
+		const operatorsMap: Record<ConditionJoinOperator, string> = {
 			and: "and",
 			andNot: "and not",
 			or: "or",
 			orNot: "or not",
 		};
-		return (
-			this.#content
-				.reduce((m, o) => {
-					if (!o.condition && !o.expression) return m;
-					const val = o.condition
-						? `(${o.condition.toString(options)})`
-						: o.expression!.toString(options);
-					if (val !== "()") {
-						m.push(
-							o.condition
-								? `(${o.condition.toString(options)})`
-								: o.expression!.toString(options),
-							operatorsMap[o.operator]
-						);
-					}
-					return m;
-				}, [] as string[])
-				// strip last block operator
-				.slice(0, -1)
-				.join(" ")
-		);
+
+		type Term = { rendered: string; join: ConditionJoinOperator | null };
+		const terms: Term[] = [];
+		let lastSurvivingIdx = -1;
+
+		for (let i = 0; i < this.#content.length; i++) {
+			const o = this.#content[i];
+			let rendered: string | null = null;
+
+			if (o.condition) {
+				if (!o.condition.isEmpty()) {
+					rendered = `(${o.condition.toString(effective)})`;
+				}
+			} else if (o.expression) {
+				rendered = o.expression.toString(effective);
+			}
+
+			if (rendered === null) continue;
+
+			// Connector between this surviving term and the previous surviving
+			// term is the operator stored on the previous *surviving* entry
+			// (content[i].operator is the connector that follows content[i]).
+			const join =
+				lastSurvivingIdx === -1
+					? null
+					: this.#content[lastSurvivingIdx].operator;
+			terms.push({ rendered, join });
+			lastSurvivingIdx = i;
+		}
+
+		if (terms.length === 0) return "";
+		if (terms.length === 1) return terms[0].rendered;
+
+		// Left-associative render with auto-parenthesization to preserve
+		// precedence (AND binds tighter than OR in SQL).
+		let acc = terms[0].rendered;
+		let accLevel = Infinity; // atoms have highest precedence
+		for (let i = 1; i < terms.length; i++) {
+			const { rendered, join } = terms[i];
+			const opLevel = joinLevel(join!);
+			if (opLevel > accLevel) acc = `(${acc})`;
+			acc = `${acc} ${operatorsMap[join!]} ${rendered}`;
+			accLevel = opLevel;
+		}
+		return acc;
 	}
 }

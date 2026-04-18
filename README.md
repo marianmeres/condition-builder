@@ -89,6 +89,37 @@ assertEquals(c2.toString(), "a=b or c!=d or (e<f and g=h or (i~*j and k!~*l))");
 const structure = c.toJSON();
 ```
 
+## Operator precedence
+
+SQL's `AND` binds tighter than `OR`. Since the builder API is left-associative
+(each chained call folds into a running accumulator), the rendered string is
+auto-parenthesized to preserve the order in which calls were made:
+
+```ts
+const c = new Condition()
+	.and("a", OPERATOR.eq, "1")
+	.or("b", OPERATOR.eq, "2")
+	.and("c", OPERATOR.eq, "3");
+
+c.toString(); // "(a=1 or b=2) and c=3"
+```
+
+Without the extra parentheses the string would be `a=1 or b=2 and c=3`, which
+SQL parses as `a=1 OR (b=2 AND c=3)` — a different query. The library emits
+only the parentheses that are necessary to disambiguate.
+
+## Array values for `in` / `nin`
+
+When the operator is `in` or `nin` and the value is an array, it is rendered
+as a parenthesized, comma-separated list. Each element passes through
+`renderValue` individually, so escaping/parameterization applies.
+
+```ts
+new Condition()
+	.and("id", OPERATOR.in, [1, 2, 3])
+	.toString(); // "id in (1,2,3)"
+```
+
 ## Expression validation and rendering
 
 Point of this package is to create a textual representation of the logical conditions
@@ -177,6 +208,58 @@ providing your own custom `renderOperator` function.
 const e = new Expression("foo", "==", "bar");
 assertEquals(e.toString(), "foo==bar");
 ```
+
+## PostgreSQL presets
+
+For PostgreSQL output, two presets are shipped:
+
+### Inline SQL (`pgRenderers`)
+
+Double-quotes identifiers and single-quote-escapes string literals. Handles
+`null`, booleans, numbers, and bigints natively.
+
+```ts
+import { Condition, OPERATOR, pgRenderers } from "@marianmeres/condition-builder";
+
+const c = new Condition()
+	.and('fo"o', OPERATOR.eq, "ba'r")
+	.and("id", OPERATOR.in, [1, 2, 3])
+	.or("active", OPERATOR.is, null);
+
+c.toString(pgRenderers);
+// "fo""o"='ba''r' and "id" in (1,2,3) or "active" is null
+```
+
+### Parameterized queries (`pgParameterized`) — recommended
+
+Emits `$1`, `$2`, … placeholders and collects values into a shared array.
+Values never touch the SQL string, which makes this the safest option for
+input you don't control.
+
+```ts
+import { Condition, OPERATOR, pgParameterized } from "@marianmeres/condition-builder";
+
+const { options, params } = pgParameterized();
+
+const c = new Condition()
+	.and("id", OPERATOR.in, [1, 2, 3])
+	.and("name", OPERATOR.eq, "'; drop table users; --");
+
+const sql = c.toString(options);
+// "id" in ($1,$2,$3) and "name"=$4
+// params: [1, 2, 3, "'; drop table users; --"]
+
+// Pass to your driver:
+// await client.query(`select * from users where ${sql}`, params);
+```
+
+Pass a custom `startIndex` if you're stitching the condition into a larger
+query that already has parameters.
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for release notes and breaking-change
+details.
 
 ## API Reference
 
