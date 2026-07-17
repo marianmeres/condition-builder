@@ -33,7 +33,7 @@ export const tools: McpToolDefinition[] = [
 			conditions: z
 				.string()
 				.describe(
-					'JSON array of condition nodes. Each node: { "join": "and"|"or"|"andNot"|"orNot", "key": "column", "operator": "eq"|"neq"|"gt"|"gte"|"lt"|"lte"|"like"|"nlike"|"match"|"nmatch"|"is"|"nis"|"in"|"nin", "value": "..." } for leaf expressions, or { "join": "...", "children": [...] } for nested groups. The "join" of the first node is ignored.'
+					'JSON array of condition nodes. Each node: { "join": "and"|"or"|"andNot"|"orNot", "key": "column", "operator": "eq"|"neq"|"gt"|"gte"|"lt"|"lte"|"like"|"nlike"|"match"|"nmatch"|"is"|"nis"|"in"|"nin", "value": "..." } for leaf expressions, or { "join": "...", "children": [...] } for nested groups. The "join" of the first node is ignored.',
 				),
 		},
 		handler: async ({ conditions }) => {
@@ -44,9 +44,11 @@ export const tools: McpToolDefinition[] = [
 	{
 		name: "render-condition-dump",
 		description:
-			"Render a serialized condition-builder dump (from Condition.dump()) back to a human-readable SQL WHERE clause string.",
+			"Render a serialized condition-builder dump (from Condition.dump()) back to a human-readable SQL WHERE clause string. Input shape is validated: invalid dumps throw a descriptive TypeError instead of rendering garbage.",
 		params: {
-			dump: z.string().describe("JSON string previously produced by Condition.dump()"),
+			dump: z.string().describe(
+				'JSON string previously produced by Condition.dump(): an ARRAY of entries { "operator": "and"|"or"|"andNot"|"orNot", "expression": { "key": string, "operator": string, "value": any } } or { "operator": ..., "condition": [...] } for nested groups. Note: "expression" must be a plain object with a string "key" — NOT wrapped in an array ("expression": [{...}] is a common mistake and throws).',
+			),
 		},
 		handler: async ({ dump }) => {
 			return Condition.restore(dump as string).toString();

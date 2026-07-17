@@ -25,10 +25,10 @@
 
 import {
 	Expression,
-	type ExpressionRenderersOptions,
 	type ExpressionContext,
 	type ExpressionOperator,
 	type ExpressionOptions,
+	type ExpressionRenderersOptions,
 } from "./expression.ts";
 
 /**
@@ -67,7 +67,7 @@ export type ConditionDump = {
 /** Merge helper: `overrides` wins per-key, but `undefined` values are ignored. */
 function mergeRenderOptions(
 	base: Partial<ExpressionRenderersOptions> | undefined,
-	overrides: Partial<ExpressionRenderersOptions> | undefined
+	overrides: Partial<ExpressionRenderersOptions> | undefined,
 ): Partial<ExpressionRenderersOptions> {
 	const out: any = { ...(base ?? {}) };
 	if (overrides) {
@@ -83,6 +83,14 @@ function mergeRenderOptions(
 function joinLevel(op: ConditionJoinOperator): number {
 	return op.startsWith("and") ? 2 : 1;
 }
+
+/** Valid join operators (also the `Condition` method names replayed by `restore`). */
+const JOIN_OPERATORS: ReadonlySet<string> = new Set([
+	"and",
+	"or",
+	"andNot",
+	"orNot",
+]);
 
 /** High level class to represent `Expression`s as logical structure. */
 export class Condition {
@@ -101,7 +109,7 @@ export class Condition {
 		key: string,
 		operator: ExpressionOperator,
 		value: any,
-		condOperator: ConditionJoinOperator
+		condOperator: ConditionJoinOperator,
 	): Condition {
 		this.#setCurrentAs(condOperator);
 		this.#content.push({
@@ -114,7 +122,7 @@ export class Condition {
 
 	#addCondition(
 		condition: Condition,
-		operator: ConditionJoinOperator
+		operator: ConditionJoinOperator,
 	): Condition {
 		this.#setCurrentAs(operator);
 		// Do NOT mutate the sub-condition's `options`. Each node keeps its own
@@ -128,7 +136,7 @@ export class Condition {
 		joinOperation: "and" | "andNot",
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any
+		value?: any,
 	): Condition {
 		return keyOrCond instanceof Condition
 			? this.#addCondition(keyOrCond, joinOperation)
@@ -139,7 +147,7 @@ export class Condition {
 		joinOperation: "or" | "orNot",
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any
+		value?: any,
 	): Condition {
 		return keyOrCond instanceof Condition
 			? this.#addCondition(keyOrCond, joinOperation)
@@ -156,7 +164,7 @@ export class Condition {
 	and(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any
+		value?: any,
 	): Condition {
 		return this.#and("and", keyOrCond, operator, value);
 	}
@@ -171,7 +179,7 @@ export class Condition {
 	andNot(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any
+		value?: any,
 	): Condition {
 		return this.#and("andNot", keyOrCond, operator, value);
 	}
@@ -186,7 +194,7 @@ export class Condition {
 	or(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any
+		value?: any,
 	): Condition {
 		return this.#or("or", keyOrCond, operator, value);
 	}
@@ -201,7 +209,7 @@ export class Condition {
 	orNot(
 		keyOrCond: string | Condition,
 		operator?: ExpressionOperator,
-		value?: any
+		value?: any,
 	): Condition {
 		return this.#or("orNot", keyOrCond, operator, value);
 	}
@@ -253,18 +261,34 @@ export class Condition {
 	 * This is the inverse of {@linkcode dump} and {@linkcode toJSON}.
 	 * Useful for restoring conditions that were stored or transmitted.
 	 *
-	 * @param dump - A JSON string or plain object representing the condition.
+	 * Validation: the dump must be an array of entries, each entry must carry
+	 * either a `condition` or an `expression`, join operators are validated
+	 * where they are replayed, and an `expression` must be a non-array
+	 * `{ key, operator, value }`-shaped value with a string `key`. Notably, an
+	 * array-wrapped expression (`expression: [{...}]`) is a common
+	 * hand-authoring mistake that used to silently render `undefined`s — it now
+	 * throws. The `operator` and `value` members are intentionally NOT
+	 * validated: custom operators are supported (any string), and valueless
+	 * expressions (e.g. unary custom renderers, or `undefined` values dropped
+	 * by JSON serialization) must keep round-tripping.
+	 *
+	 * @param dump - A JSON string or a `ConditionDump` array.
 	 * @param options - Optional expression options to apply during restoration.
 	 * @returns A new Condition instance with the restored structure.
 	 * @throws {TypeError} If the dump contains invalid data.
 	 */
 	static restore(
 		dump: string | ConditionDump,
-		options: ExpressionOptions = {}
+		options: ExpressionOptions = {},
 	): Condition {
 		const cond = new Condition(options);
-		const content: ConditionDump =
-			typeof dump === "string" ? JSON.parse(dump) : dump;
+		const content: ConditionDump = typeof dump === "string" ? JSON.parse(dump) : dump;
+
+		if (!Array.isArray(content)) {
+			throw new TypeError(
+				"Invalid dump: expected an array of { operator, condition | expression } entries",
+			);
+		}
 
 		for (const [i, expOrCond] of content.entries()) {
 			if (!expOrCond?.condition && !expOrCond?.expression) {
@@ -274,18 +298,41 @@ export class Condition {
 			// The "and(...)", "or(...)" apis always update the current (preceding)
 			// operator before adding the new entry, so to round-trip we replay the
 			// call using the *previous* entry's stored operator (the last-entry
-			// operator is a placeholder and unused at render time).
+			// operator is a placeholder and unused at render time — which is why
+			// it is deliberately NOT validated here).
 			const method: "and" | "or" | "andNot" | "orNot" =
 				content[Math.max(i - 1, 0)].operator;
+
+			if (!JOIN_OPERATORS.has(method)) {
+				throw new TypeError(
+					`Invalid join operator "${method}" (expected one of: and, or, andNot, orNot)`,
+				);
+			}
 
 			if (expOrCond?.condition) {
 				const restored = Condition.restore(
 					JSON.stringify(expOrCond.condition),
-					options
+					options,
 				);
 				cond[method](restored);
 			} else {
-				const { key, operator, value } = expOrCond?.expression!;
+				const expression = expOrCond?.expression!;
+				// Guard against silently-corrupting shapes (e.g. `expression`
+				// wrapped in an array, or a missing/typo-ed `key`) — destructuring
+				// those yields `undefined`s which would render as garbage. Note:
+				// the string-`key` check alone rejects primitives too (they have
+				// no `key` member); anything key-value-shaped with a string `key`
+				// (incl. Expression instances) destructures fine and is accepted.
+				if (
+					Array.isArray(expression) ||
+					typeof expression?.key !== "string"
+				) {
+					throw new TypeError(
+						"Invalid 'expression': expected a plain { key, operator, value } " +
+							"object with a string 'key' (arrays are not a valid expression shape)",
+					);
+				}
+				const { key, operator, value } = expression;
 				cond[method](key, operator, value);
 			}
 		}
@@ -348,10 +395,9 @@ export class Condition {
 			// Connector between this surviving term and the previous surviving
 			// term is the operator stored on the previous *surviving* entry
 			// (content[i].operator is the connector that follows content[i]).
-			const join =
-				lastSurvivingIdx === -1
-					? null
-					: this.#content[lastSurvivingIdx].operator;
+			const join = lastSurvivingIdx === -1
+				? null
+				: this.#content[lastSurvivingIdx].operator;
 			terms.push({ rendered, join });
 			lastSurvivingIdx = i;
 		}

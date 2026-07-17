@@ -40,8 +40,8 @@ Deno.test("condition", () => {
 			.or(
 				new Condition()
 					.and("i", OPERATOR.match, "j")
-					.and("k", OPERATOR.nmatch, "l")
-			)
+					.and("k", OPERATOR.nmatch, "l"),
+			),
 	);
 
 	const expected = "a=b or c!=d or (e<f and g=h or (i~*j and k!~*l))";
@@ -116,7 +116,7 @@ Deno.test("(a=b) and (c=d)", () => {
 	const c = new Condition();
 
 	c.and(new Condition().and("a", OPERATOR.eq, "b")).and(
-		new Condition().and("c", OPERATOR.eq, "d")
+		new Condition().and("c", OPERATOR.eq, "d"),
 	);
 
 	const expected = "(a=b) and (c=d)";
@@ -188,7 +188,7 @@ Deno.test("isEmpty", () => {
 	assertEquals(withExpr.isEmpty(), false);
 
 	const deepWithExpr = new Condition().and(
-		new Condition().and(new Condition().and("x", OPERATOR.eq, "y"))
+		new Condition().and(new Condition().and("x", OPERATOR.eq, "y")),
 	);
 	assertEquals(deepWithExpr.isEmpty(), false);
 });
@@ -199,7 +199,7 @@ Deno.test("not", () => {
 	c.and("a", OPERATOR.eq, "b")
 		.andNot("c", OPERATOR.eq, "d")
 		.orNot(
-			new Condition().and("e", OPERATOR.eq, "f").andNot("g", OPERATOR.eq, "h")
+			new Condition().and("e", OPERATOR.eq, "f").andNot("g", OPERATOR.eq, "h"),
 		);
 
 	assertEquals(c.toString(), "a=b and not c=d or not (e=f and not g=h)");
@@ -287,8 +287,8 @@ Deno.test("deeply nested dump/restore round-trip", () => {
 				.and(
 					new Condition()
 						.and("c", OPERATOR.eq, "3")
-						.or(new Condition().and("d", OPERATOR.eq, "4"))
-				)
+						.or(new Condition().and("d", OPERATOR.eq, "4")),
+				),
 		);
 
 	const expected = c.toString();
@@ -299,13 +299,13 @@ Deno.test("deeply nested dump/restore round-trip", () => {
 
 Deno.test("pg preset renders safely-escaped SQL", () => {
 	const c = new Condition()
-		.and("fo\"o", OPERATOR.eq, "ba'r")
+		.and('fo"o', OPERATOR.eq, "ba'r")
 		.and("id", OPERATOR.in, [1, 2, 3])
 		.or("active", OPERATOR.is, null);
 
 	assertEquals(
 		c.toString(pgRenderers),
-		`"fo""o"='ba''r' and "id" in (1,2,3) or "active" is null`
+		`"fo""o"='ba''r' and "id" in (1,2,3) or "active" is null`,
 	);
 });
 
@@ -325,4 +325,173 @@ Deno.test("pgParameterized respects custom startIndex", () => {
 	const c = new Condition().and("a", OPERATOR.eq, "x").or("b", OPERATOR.eq, "y");
 	assertEquals(c.toString(options), `"a"=$10 or "b"=$11`);
 	assertEquals(params, ["x", "y"]);
+});
+
+// --- restore() input validation (silent-corruption hardening) ------------
+
+Deno.test("restore throws on array-wrapped expression (README-bug shape)", () => {
+	// the shape once shown (incorrectly) in condition-parser's README — used
+	// to restore "successfully" and render `undefinedundefinedundefined`s
+	const dump = [
+		{
+			expression: { key: "a", operator: "eq", value: "b" },
+			operator: "and",
+		},
+		{
+			condition: [
+				{
+					expression: [{ key: "c", operator: "eq", value: "d" }],
+					operator: "or",
+				},
+				{
+					expression: [{ key: "e", operator: "eq", value: "f" }],
+					operator: "or",
+				},
+			],
+			operator: "and",
+		},
+	];
+	assertThrows(
+		() => Condition.restore(dump as any),
+		TypeError,
+		"Invalid 'expression'",
+	);
+	// same via JSON string input
+	assertThrows(
+		() => Condition.restore(JSON.stringify(dump)),
+		TypeError,
+		"Invalid 'expression'",
+	);
+});
+
+Deno.test("restore throws on non-object expression", () => {
+	for (const expression of ["a:b", 123, true]) {
+		assertThrows(
+			() => Condition.restore([{ operator: "and", expression }] as any),
+			TypeError,
+			"Invalid 'expression'",
+		);
+	}
+});
+
+Deno.test("restore throws on expression with missing or non-string key", () => {
+	// missing (or typo-ed) `key`
+	assertThrows(
+		() =>
+			Condition.restore([
+				{ operator: "and", expression: { operator: "eq", value: "b" } },
+			] as any),
+		TypeError,
+		"Invalid 'expression'",
+	);
+	// non-string `key`
+	assertThrows(
+		() =>
+			Condition.restore([
+				{ operator: "and", expression: { key: 123, operator: "eq", value: "b" } },
+			] as any),
+		TypeError,
+		"Invalid 'expression'",
+	);
+});
+
+Deno.test("restore throws on non-array dump", () => {
+	assertThrows(() => Condition.restore("{}"), TypeError, "Invalid dump");
+	assertThrows(() => Condition.restore({} as any), TypeError, "Invalid dump");
+	assertThrows(() => Condition.restore("null"), TypeError, "Invalid dump");
+});
+
+Deno.test("restore throws on invalid join operator (where used)", () => {
+	assertThrows(
+		() =>
+			Condition.restore([
+				{
+					operator: "xor",
+					expression: { key: "a", operator: "eq", value: "b" },
+				},
+			] as any),
+		TypeError,
+		'Invalid join operator "xor"',
+	);
+});
+
+Deno.test("restore tolerates invalid operator on the LAST entry (unused placeholder)", () => {
+	// content[i].operator joins entry i to i+1 — the last one is a placeholder
+	// and unused at replay/render time, so it must NOT be validated (BC)
+	const c = Condition.restore([
+		{ operator: "or", expression: { key: "a", operator: "eq", value: "b" } },
+		{ operator: "whatever", expression: { key: "c", operator: "eq", value: "d" } },
+	] as any);
+	assertEquals(c.toString(), "a=b or c=d");
+});
+
+Deno.test("restore keeps valueless/custom-operator expressions working (BC)", () => {
+	// `value: undefined` is dropped by JSON serialization, and custom (unary)
+	// operators are supported — both must keep round-tripping
+	const c = Condition.restore([
+		{ operator: "and", expression: { key: "deleted_at", operator: "isnull" } },
+	] as any);
+	// note: toJSON() JSON-round-trips, so undefined members are dropped
+	assertEquals(c.toJSON(), [
+		{
+			operator: "and",
+			expression: { key: "deleted_at", operator: "isnull" },
+		},
+	] as any);
+});
+
+Deno.test("restore throws on invalid nested condition shape", () => {
+	assertThrows(
+		() =>
+			Condition.restore([
+				{ operator: "and", condition: { not: "an array" } },
+			] as any),
+		TypeError,
+		"Invalid dump",
+	);
+});
+
+Deno.test("restore accepts any key-value-shaped expression with a string key (BC)", () => {
+	// destructuring only needs `key`/`operator`/`value` members — e.g. a
+	// function object carrying them worked correctly before the validation
+	// hardening (reachable via condition-parser transform/preAddHook), and
+	// must keep working
+	const f: any = () => {};
+	f.key = "a";
+	f.operator = "eq";
+	f.value = "b";
+	const c = Condition.restore([{ operator: "and", expression: f }] as any);
+	assertEquals(c.toString(), "a=b");
+});
+
+Deno.test("restore throws on join operator colliding with a method name", () => {
+	// "toString"/"toJSON"/"dump"/"isEmpty"/... are callable Condition members —
+	// the old code silently swallowed such entries (cond["toString"](...) is a
+	// real call), potentially dropping VALID entries too; now they throw
+	for (const operator of ["toString", "toJSON", "dump", "isEmpty", "hasOwnProperty"]) {
+		assertThrows(
+			() =>
+				Condition.restore([
+					{ operator, expression: { key: "a", operator: "eq", value: "b" } },
+					{
+						operator: "and",
+						expression: { key: "c", operator: "eq", value: "d" },
+					},
+				] as any),
+			TypeError,
+			`Invalid join operator "${operator}"`,
+		);
+	}
+});
+
+Deno.test("restore throws on entries()-iterable non-array dumps", () => {
+	// Map/TypedArray/duck-typed `.entries()` used to silently produce an EMPTY
+	// condition (renders "" — an empty WHERE matches everything!); now they throw
+	for (const dump of [new Map(), new Int8Array(0), { entries: () => [].values() }]) {
+		assertThrows(
+			() => Condition.restore(dump as any),
+			TypeError,
+			"Invalid dump",
+		);
+	}
 });

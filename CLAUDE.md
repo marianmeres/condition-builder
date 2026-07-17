@@ -7,7 +7,8 @@ TypeScript library for building SQL WHERE conditions with nested logical operato
 ## Structure
 
 - `src/mod.ts` - Entry point
-- `src/expression.ts` - `Expression` class (key-operator-value), `OPERATOR`, `LIST_OPERATORS`
+- `src/expression.ts` - `Expression` class (key-operator-value), `OPERATOR`,
+  `LIST_OPERATORS`
 - `src/condition.ts` - `Condition` class (hierarchical AND/OR/NOT)
 - `src/presets.ts` - `pgRenderers`, `pgParameterized`, `pgLiteral`, `pgQuoteIdentifier`
 - `tests/all.test.ts` - Tests
@@ -19,13 +20,13 @@ import { Condition, Expression, OPERATOR } from "@marianmeres/condition-builder"
 
 // Build condition
 const c = new Condition()
-  .and("a", OPERATOR.eq, "b")
-  .or("c", OPERATOR.neq, "d")
-  .andNot(new Condition().and("e", OPERATOR.lt, "f"));
+	.and("a", OPERATOR.eq, "b")
+	.or("c", OPERATOR.neq, "d")
+	.andNot(new Condition().and("e", OPERATOR.lt, "f"));
 
-c.toString();  // "a=b or c!=d and not (e<f)"
-c.dump();      // JSON string
-Condition.restore(json);  // Restore from JSON
+c.toString(); // "a=b or c!=d and not (e<f)"
+c.dump(); // JSON string
+Condition.restore(json); // Restore from JSON
 ```
 
 ## Key Points
@@ -34,10 +35,14 @@ Condition.restore(json);  // Restore from JSON
 - Chainable fluent API
 - Operators: `and`, `or`, `andNot`, `orNot`
 - Customizable validation and rendering
-- PostgreSQL operator symbols by default; `pgRenderers` / `pgParameterized` for safe output
+- PostgreSQL operator symbols by default; `pgRenderers` / `pgParameterized` for safe
+  output
 - Supports custom operators
 - Arrays + `in`/`nin` render as `(a,b,c)`
-- `toString()` auto-parenthesizes mixed AND/OR to preserve left-associative call order under SQL precedence
+- `toString()` auto-parenthesizes mixed AND/OR to preserve left-associative call order
+  under SQL precedence
+- `restore()` validates dump shape — malformed dumps (e.g. array-wrapped `expression`,
+  non-string `key`) throw `TypeError` instead of silently rendering `undefined`s
 
 ## Commands
 
